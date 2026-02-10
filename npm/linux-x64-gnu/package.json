@@ -1,11 +1,11 @@
 {
-  "name": "@mozharovsky/xcode-linux-x64-gnu",
+  "name": "@xcodekit/xcode-linux-x64-gnu",
   "version": "0.1.0",
   "os": ["linux"],
   "cpu": ["x64"],
   "main": "xcode.linux-x64-gnu.node",
   "files": ["xcode.linux-x64-gnu.node"],
-  "description": "Native binary for @mozharovsky/xcode (linux-x64-gnu)",
+  "description": "Native binary for @xcodekit/xcode (linux-x64-gnu)",
   "license": "MIT",
   "repository": {
     "type": "git",

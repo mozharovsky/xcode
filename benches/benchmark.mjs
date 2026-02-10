@@ -1,5 +1,5 @@
 /**
- * Benchmark: @mozharovsky/xcode (Rust) vs @bacons/xcode (TypeScript).
+ * Benchmark: @xcodekit/xcode (Rust) vs @bacons/xcode (TypeScript).
  *
  * Run: node benches/benchmark.mjs
  * Requires: npm run build (or make build) first
@@ -75,7 +75,7 @@ const fixtures = [
 // ── Run ────────────────────────────────────────────────────────────
 
 console.log("=".repeat(78));
-console.log(" @mozharovsky/xcode (Rust) vs @bacons/xcode (TypeScript)");
+console.log(" @xcodekit/xcode (Rust) vs @bacons/xcode (TypeScript)");
 console.log("=".repeat(78));
 console.log(`Warmup: ${WARMUP}  Iterations: ${ITERATIONS}`);
 console.log();

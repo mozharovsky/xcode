@@ -1,4 +1,4 @@
-# @mozharovsky/xcode
+# @xcodekit/xcode
 
 A fast, native Xcode `.pbxproj` parser and serializer for Node.js, written in Rust.
 
@@ -7,7 +7,7 @@ Drop-in replacement for the low-level API of [`@bacons/xcode`](https://github.co
 ## Install
 
 ```bash
-npm install @mozharovsky/xcode
+npm install @xcodekit/xcode
 ```
 
 Platform-specific binaries are installed automatically via `optionalDependencies`.
@@ -15,7 +15,7 @@ Platform-specific binaries are installed automatically via `optionalDependencies
 ## Quick Start
 
 ```js
-import { parse, build } from "@mozharovsky/xcode";
+import { parse, build } from "@xcodekit/xcode";
 import { readFileSync, writeFileSync } from "fs";
 
 // Parse a .pbxproj file
@@ -69,7 +69,7 @@ const output = parseAndBuild(readFileSync("project.pbxproj", "utf8"));
 Open and parse a `.pbxproj` file from disk.
 
 ```js
-import { XcodeProject } from "@mozharovsky/xcode";
+import { XcodeProject } from "@xcodekit/xcode";
 
 const project = XcodeProject.open("ios/MyApp.xcodeproj/project.pbxproj");
 
@@ -134,7 +134,7 @@ Benchmarked on Apple M4 Pro, Node.js v24. Median of 200 iterations.
 
 ### Package Size
 
-| | @bacons/xcode | @mozharovsky/xcode |
+| | @bacons/xcode | @xcodekit/xcode |
 |-|--------------|-------------------|
 | Unpacked | 1.1 MB | 559 KB |
 | Gzipped | ~400 KB | ~270 KB |

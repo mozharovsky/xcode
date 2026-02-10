@@ -1,11 +1,11 @@
 {
-  "name": "@mozharovsky/xcode-darwin-arm64",
+  "name": "@xcodekit/xcode-darwin-arm64",
   "version": "0.1.0",
   "os": ["darwin"],
   "cpu": ["arm64"],
   "main": "xcode.darwin-arm64.node",
   "files": ["xcode.darwin-arm64.node"],
-  "description": "Native binary for @mozharovsky/xcode (darwin-arm64)",
+  "description": "Native binary for @xcodekit/xcode (darwin-arm64)",
   "license": "MIT",
   "repository": {
     "type": "git",

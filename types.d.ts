@@ -1,5 +1,5 @@
 /**
- * Supplemental type definitions for @mozharovsky/xcode.
+ * Supplemental type definitions for @xcodekit/xcode.
  *
  * These provide rich types for the parsed .pbxproj JSON structure
  * beyond what napi-rs auto-generates.

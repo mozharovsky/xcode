@@ -1,5 +1,5 @@
 {
-  "name": "@mozharovsky/xcode",
+  "name": "@xcodekit/xcode",
   "version": "0.1.0",
   "description": "Parse, manipulate, and serialize Xcode .pbxproj files — native Rust rewrite",
   "main": "index.js",
@@ -16,11 +16,11 @@
   },
   "license": "MIT",
   "optionalDependencies": {
-    "@mozharovsky/xcode-darwin-arm64": "0.1.0",
-    "@mozharovsky/xcode-darwin-x64": "0.1.0",
-    "@mozharovsky/xcode-linux-arm64-gnu": "0.1.0",
-    "@mozharovsky/xcode-linux-x64-gnu": "0.1.0",
-    "@mozharovsky/xcode-win32-x64-msvc": "0.1.0"
+    "@xcodekit/xcode-darwin-arm64": "0.1.0",
+    "@xcodekit/xcode-darwin-x64": "0.1.0",
+    "@xcodekit/xcode-linux-arm64-gnu": "0.1.0",
+    "@xcodekit/xcode-linux-x64-gnu": "0.1.0",
+    "@xcodekit/xcode-win32-x64-msvc": "0.1.0"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0",
