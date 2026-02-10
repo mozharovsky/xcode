@@ -17,15 +17,20 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
+            npm_dir: darwin-arm64
           - target: x86_64-apple-darwin
             os: macos-latest
+            npm_dir: darwin-x64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            npm_dir: linux-x64-gnu
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
+            npm_dir: linux-arm64-gnu
             cross: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            npm_dir: win32-x64-msvc
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +49,7 @@ jobs:
         run: npx napi build --platform --release --target ${{ matrix.target }} ${{ matrix.cross && '--zig' || '' }}
       - uses: actions/upload-artifact@v4
         with:
-          name: bindings-${{ matrix.target }}
+          name: bindings-${{ matrix.npm_dir }}
           path: "*.node"
 
   test:
@@ -60,7 +65,7 @@ jobs:
       - run: cargo test --no-default-features
       - uses: actions/download-artifact@v4
         with:
-          name: bindings-aarch64-apple-darwin
+          name: bindings-darwin-arm64
       - run: npm install
       - run: npm test
 
@@ -78,38 +83,47 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - run: npm install
-
-      # Download all platform binaries
+      # Download all binaries and place into npm dirs
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: bindings-darwin-arm64
+          path: npm/darwin-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-darwin-x64
+          path: npm/darwin-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-linux-x64-gnu
+          path: npm/linux-x64-gnu
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-linux-arm64-gnu
+          path: npm/linux-arm64-gnu
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-win32-x64-msvc
+          path: npm/win32-x64-msvc
 
-      # Move binaries into platform packages
-      - name: Move artifacts
-        run: npx napi artifacts --dir artifacts
-
-      # Prepare platform packages (--skip-gh-release to skip GitHub release creation)
-      - name: Prepare publish
-        run: npx napi prepublish -t npm --skip-gh-release
-
-      # Publish platform packages
+      # Publish each platform package
       - name: Publish platform packages
         run: |
           for dir in npm/*/; do
-            if [ -f "$dir/package.json" ]; then
+            if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
               echo "Publishing $dir..."
-              cd "$dir"
-              npm publish --access public --provenance || true
-              cd ../..
+              (cd "$dir" && npm publish --access public) || true
             fi
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Build index.js and index.d.ts for main package
+      - run: npm install
+      - run: npx napi build --platform --release --target x86_64-unknown-linux-gnu
+
       # Publish main package
       - name: Publish main package
-        run: npm publish --access public --provenance
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
