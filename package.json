@@ -1,0 +1,60 @@
+{
+  "name": "@mozharovsky/xcode",
+  "version": "0.1.0",
+  "description": "Parse, manipulate, and serialize Xcode .pbxproj files — native Rust rewrite",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "xcode",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu"
+      ]
+    }
+  },
+  "license": "MIT",
+  "optionalDependencies": {
+    "@mozharovsky/xcode-darwin-arm64": "0.1.0",
+    "@mozharovsky/xcode-darwin-x64": "0.1.0",
+    "@mozharovsky/xcode-linux-arm64-gnu": "0.1.0",
+    "@mozharovsky/xcode-linux-x64-gnu": "0.1.0",
+    "@mozharovsky/xcode-win32-x64-msvc": "0.1.0"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0",
+    "ava": "^6.0.0"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "ava",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "ava": {
+    "timeout": "60000"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types.d.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nickmozharovsky/xcode"
+  },
+  "keywords": [
+    "xcode",
+    "pbxproj",
+    "ios",
+    "apple",
+    "parser",
+    "native",
+    "napi",
+    "rust"
+  ]
+}

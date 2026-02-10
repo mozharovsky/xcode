@@ -1,0 +1,38 @@
+[package]
+name = "xcode"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Parse, manipulate, and serialize Xcode .pbxproj files"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = ["napi"]
+napi = ["dep:napi", "dep:napi-derive"]
+
+[dependencies]
+napi = { version = "2", features = ["serde-json", "napi9"], optional = true }
+napi-derive = { version = "2", optional = true }
+indexmap = { version = "2", features = ["serde"] }
+md-5 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+regex = "1"
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+[[bench]]
+name = "parse_build"
+harness = false
+
+[profile.release]
+lto = true
+strip = "symbols"
+codegen-units = 1
+opt-level = "z"
