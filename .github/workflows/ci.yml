@@ -57,7 +57,7 @@ jobs:
           version: 0.13.0
 
       - name: Build
-        run: npx napi build --platform --release --target ${{ matrix.target }} ${{ matrix.cross && '--use-napi-cross' || '' }}
+        run: npx napi build --platform --release --target ${{ matrix.target }} ${{ matrix.cross && '--zig' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
