@@ -89,9 +89,9 @@ jobs:
       - name: Move artifacts
         run: npx napi artifacts --dir artifacts
 
-      # Prepare platform packages (--no-gh-release to skip GitHub release creation)
+      # Prepare platform packages (--skip-gh-release to skip GitHub release creation)
       - name: Prepare publish
-        run: npx napi prepublish -t npm --no-gh-release
+        run: npx napi prepublish -t npm --skip-gh-release
 
       # Publish platform packages
       - name: Publish platform packages
