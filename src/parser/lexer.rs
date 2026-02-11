@@ -1,5 +1,33 @@
 use super::escape::unescape_string;
 
+/// Lookup table for unquoted string literal characters: `[a-zA-Z0-9_$/:.-]`.
+/// Single array index per byte — branchless classification in hot loops.
+static IS_LITERAL_CHAR: [bool; 256] = {
+    let mut t = [false; 256];
+    let mut i: u8 = b'a';
+    while i <= b'z' {
+        t[i as usize] = true;
+        i += 1;
+    }
+    i = b'A';
+    while i <= b'Z' {
+        t[i as usize] = true;
+        i += 1;
+    }
+    i = b'0';
+    while i <= b'9' {
+        t[i as usize] = true;
+        i += 1;
+    }
+    t[b'_' as usize] = true;
+    t[b'$' as usize] = true;
+    t[b'/' as usize] = true;
+    t[b':' as usize] = true;
+    t[b'.' as usize] = true;
+    t[b'-' as usize] = true;
+    t
+};
+
 /// Token types produced by the lexer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -109,8 +137,7 @@ impl<'a> Lexer<'a> {
             return Err(format!("Unterminated string at offset {}", start - 1));
         }
 
-        let raw = std::str::from_utf8(&bytes[start..end])
-            .map_err(|e| format!("Invalid UTF-8 in string: {}", e))?;
+        let raw = std::str::from_utf8(&bytes[start..end]).map_err(|e| format!("Invalid UTF-8 in string: {}", e))?;
         self.pos = end + 1; // skip closing quote
 
         let unescaped = if has_escape {
@@ -156,8 +183,7 @@ impl<'a> Lexer<'a> {
             .step_by(2)
             .map(|i| {
                 let end = (i + 2).min(hex.len());
-                u8::from_str_radix(&hex[i..end], 16)
-                    .map_err(|e| format!("Invalid hex: {}", e))
+                u8::from_str_radix(&hex[i..end], 16).map_err(|e| format!("Invalid hex: {}", e))
             })
             .collect::<Result<Vec<u8>, _>>()?;
 
@@ -171,20 +197,8 @@ impl<'a> Lexer<'a> {
         let bytes = self.input;
         let len = bytes.len();
 
-        while self.pos < len {
-            let b = bytes[self.pos];
-            if b.is_ascii_alphanumeric()
-                || b == b'_'
-                || b == b'$'
-                || b == b'/'
-                || b == b':'
-                || b == b'.'
-                || b == b'-'
-            {
-                self.pos += 1;
-            } else {
-                break;
-            }
+        while self.pos < len && IS_LITERAL_CHAR[bytes[self.pos] as usize] {
+            self.pos += 1;
         }
 
         let s = unsafe { std::str::from_utf8_unchecked(&bytes[start..self.pos]) };
@@ -231,16 +245,7 @@ impl<'a> Lexer<'a> {
             }
             b'<' => self.read_data_literal().map(Some),
             b'"' | b'\'' => self.read_quoted_string().map(Some),
-            _ if b.is_ascii_alphanumeric()
-                || b == b'_'
-                || b == b'$'
-                || b == b'/'
-                || b == b':'
-                || b == b'.'
-                || b == b'-' =>
-            {
-                Ok(Some(self.read_string_literal()))
-            }
+            _ if IS_LITERAL_CHAR[b as usize] => Ok(Some(self.read_string_literal())),
             _ => Err(format!(
                 "Unexpected character '{}' (0x{:02x}) at offset {}",
                 b as char, b, self.pos
@@ -305,10 +310,7 @@ mod tests {
         let mut lexer = Lexer::new("<0123 ABCD ef>");
         let tokens = lexer.tokenize_all().unwrap();
         assert_eq!(tokens.len(), 1);
-        assert_eq!(
-            tokens[0],
-            Token::DataLiteral(vec![0x01, 0x23, 0xAB, 0xCD, 0xEF])
-        );
+        assert_eq!(tokens[0], Token::DataLiteral(vec![0x01, 0x23, 0xAB, 0xCD, 0xEF]));
     }
 
     #[test]
