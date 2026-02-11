@@ -1,7 +1,7 @@
 import test from "ava";
-import { readFileSync, mkdtempSync, cpSync } from "fs";
+import { cpSync, mkdtempSync, readFileSync } from "fs";
 import { tmpdir } from "os";
-import { join, dirname } from "path";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,9 +74,7 @@ if (native) {
   });
 
   test("XcodeProject.open() works", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     t.truthy(project);
     const json = project.toJSON();
     t.truthy(json);
@@ -85,26 +83,20 @@ if (native) {
 
   test("XcodeProject.toBuild() round-trips", (t) => {
     const original = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     const output = project.toBuild();
     t.is(output, original);
   });
 
   test("XcodeProject properties", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     t.is(project.archiveVersion, 1);
     t.is(project.objectVersion, 46);
     t.truthy(project.filePath);
   });
 
   test("XcodeProject.getNativeTargets() returns UUIDs", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     const targets = project.getNativeTargets();
     t.true(Array.isArray(targets));
     t.true(targets.length > 0);
@@ -116,18 +108,14 @@ if (native) {
   });
 
   test("XcodeProject.findMainAppTarget()", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     const targetUuid = project.findMainAppTarget("ios");
     t.truthy(targetUuid);
     t.is(typeof targetUuid, "string");
   });
 
   test("XcodeProject.getUniqueId() is deterministic", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     const id1 = project.getUniqueId("test-seed");
     const id2 = project.getUniqueId("test-seed");
     t.is(id1, id2);
@@ -148,9 +136,7 @@ if (native) {
   });
 
   test("clean project has no orphaned references", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "project.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
     const orphans = project.findOrphanedReferences();
     t.is(orphans.length, 0);
   });
@@ -189,24 +175,18 @@ if (native) {
   });
 
   test("malformed project detects orphaned references", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "malformed.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "malformed.pbxproj"));
     const orphans = project.findOrphanedReferences();
     t.true(orphans.length > 0);
 
-    const known = orphans.find(
-      (o) => o.orphanUuid === "3E1C2299F05049539341855D"
-    );
+    const known = orphans.find((o) => o.orphanUuid === "3E1C2299F05049539341855D");
     t.truthy(known);
     t.is(known.referrerIsa, "PBXResourcesBuildPhase");
     t.is(known.property, "files");
   });
 
   test("malformed project still parses and serializes", (t) => {
-    const project = native.XcodeProject.open(
-      join(FIXTURES_DIR, "malformed.pbxproj")
-    );
+    const project = native.XcodeProject.open(join(FIXTURES_DIR, "malformed.pbxproj"));
     t.truthy(project.toJSON());
     const output = project.toBuild();
     t.true(output.includes("PBXResourcesBuildPhase"));
@@ -297,7 +277,7 @@ if (native) {
     const targetUuid = project.createNativeTarget(
       "MyWidget",
       "com.apple.product-type.app-extension",
-      "com.example.mywidget"
+      "com.example.mywidget",
     );
     t.truthy(targetUuid);
 
@@ -350,6 +330,116 @@ if (native) {
     t.true(output.includes("Login.swift"));
     t.true(output.includes("Login.swift in Sources"));
     t.true(output.includes("sourcecode.swift"));
+  });
+  test("XcodeProject.fromString() parses without a file on disk", (t) => {
+    const content = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+    const project = native.XcodeProject.fromString(content);
+
+    t.is(project.archiveVersion, 1);
+    t.truthy(project.mainGroupUuid);
+    t.true(project.getNativeTargets().length > 0);
+    t.is(project.filePath, null); // no file path since it came from a string
+
+    // Can still use all high-level APIs
+    const target = project.findMainAppTarget("ios");
+    t.truthy(project.getBuildSetting(target, "PRODUCT_NAME"));
+
+    // Can serialize
+    const output = project.toBuild();
+    t.is(output, content); // round-trip matches
+  });
+
+  test("getTargetName / setTargetName", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+
+    const oldName = project.getTargetName(target);
+    t.truthy(oldName);
+
+    project.setTargetName(target, "RenamedApp");
+    t.is(project.getTargetName(target), "RenamedApp");
+
+    project.save();
+    const output = readFileSync(pbxpath, "utf8");
+    t.true(output.includes("RenamedApp"));
+  });
+
+  test("getObjectProperty / setObjectProperty", (t) => {
+    const content = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+    const project = native.XcodeProject.fromString(content);
+
+    const target = project.findMainAppTarget("ios");
+    t.is(project.getObjectProperty(target, "isa"), "PBXNativeTarget");
+    t.truthy(project.getObjectProperty(target, "name"));
+
+    project.setObjectProperty(target, "productName", "CustomProduct");
+    t.is(project.getObjectProperty(target, "productName"), "CustomProduct");
+  });
+
+  test("findObjectsByIsa", (t) => {
+    const content = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+    const project = native.XcodeProject.fromString(content);
+
+    const groups = project.findObjectsByIsa("PBXGroup");
+    t.true(groups.length > 0);
+    // Every returned UUID should be a PBXGroup
+    for (const uuid of groups) {
+      t.is(project.getObjectProperty(uuid, "isa"), "PBXGroup");
+    }
+
+    const fileRefs = project.findObjectsByIsa("PBXFileReference");
+    t.true(fileRefs.length > 0);
+  });
+
+  test("embedExtension wires copy files phase", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const hostTarget = project.findMainAppTarget("ios");
+
+    // Create an extension target
+    const extTarget = project.createNativeTarget(
+      "MyWidget",
+      "com.apple.product-type.app-extension",
+      "com.example.widget",
+    );
+
+    // Embed it
+    const phaseUuid = project.embedExtension(hostTarget, extTarget);
+    t.truthy(phaseUuid);
+
+    project.save();
+    const output = readFileSync(pbxpath, "utf8");
+    t.true(output.includes("PBXCopyFilesBuildPhase"));
+    t.true(output.includes("Embed Foundation Extensions"));
+    t.true(output.includes("dstSubfolderSpec = 13"));
+  });
+
+  test("addFileSystemSyncGroup (Xcode 16+)", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+
+    const syncUuid = project.addFileSystemSyncGroup(target, "MyApp");
+    t.truthy(syncUuid);
+
+    // Should be in main group children
+    const mainChildren = project.getGroupChildren(project.mainGroupUuid);
+    t.true(mainChildren.includes(syncUuid));
+
+    project.save();
+    const output = readFileSync(pbxpath, "utf8");
+    t.true(output.includes("PBXFileSystemSynchronizedRootGroup"));
+    t.true(output.includes("fileSystemSynchronizedGroups"));
   });
 } else {
   test("skipped — native module not available", (t) => {
