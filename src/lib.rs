@@ -8,6 +8,220 @@ pub mod project;
 pub mod types;
 pub mod writer;
 
+// ── WASM bindings ──────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")]
+mod wasm_bindings {
+    use wasm_bindgen::prelude::*;
+
+    /// Parse a .pbxproj string into a JSON string.
+    #[wasm_bindgen]
+    pub fn parse(text: &str) -> Result<String, JsError> {
+        let plist = crate::parser::parse(text).map_err(|e| JsError::new(&e))?;
+        serde_json::to_string(&plist).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Serialize a JSON string back to .pbxproj format.
+    #[wasm_bindgen]
+    pub fn build(json: &str) -> Result<String, JsError> {
+        let plist: crate::types::PlistValue = serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(crate::writer::serializer::build(&plist))
+    }
+
+    /// Parse and immediately re-serialize a .pbxproj string.
+    #[wasm_bindgen(js_name = "parseAndBuild")]
+    pub fn parse_and_build(text: &str) -> Result<String, JsError> {
+        let plist = crate::parser::parse(text).map_err(|e| JsError::new(&e))?;
+        Ok(crate::writer::serializer::build(&plist))
+    }
+
+    /// High-level project manipulation — stays in WASM memory.
+    #[wasm_bindgen]
+    pub struct XcodeProject {
+        inner: crate::project::XcodeProject,
+    }
+
+    #[wasm_bindgen]
+    impl XcodeProject {
+        /// Parse a .pbxproj string into an XcodeProject.
+        #[wasm_bindgen(constructor)]
+        pub fn new(content: &str) -> Result<XcodeProject, JsError> {
+            let inner = crate::project::XcodeProject::from_plist(content).map_err(|e| JsError::new(&e))?;
+            Ok(XcodeProject { inner })
+        }
+
+        /// Serialize the project back to .pbxproj format.
+        #[wasm_bindgen(js_name = "toBuild")]
+        pub fn to_build(&self) -> String {
+            self.inner.to_pbxproj()
+        }
+
+        /// Convert the project to a JSON string.
+        #[wasm_bindgen(js_name = "toJSON")]
+        pub fn to_json(&self) -> Result<String, JsError> {
+            let plist = self.inner.to_plist();
+            serde_json::to_string(&plist).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        // ── Properties ───────────────────────────────────────────
+
+        #[wasm_bindgen(getter, js_name = "archiveVersion")]
+        pub fn archive_version(&self) -> i64 {
+            self.inner.archive_version
+        }
+
+        #[wasm_bindgen(getter, js_name = "objectVersion")]
+        pub fn object_version(&self) -> i64 {
+            self.inner.object_version
+        }
+
+        #[wasm_bindgen(getter, js_name = "mainGroupUuid")]
+        pub fn main_group_uuid(&self) -> Option<String> {
+            self.inner.main_group_uuid()
+        }
+
+        // ── Targets ──────────────────────────────────────────────
+
+        #[wasm_bindgen(js_name = "getNativeTargets")]
+        pub fn get_native_targets(&self) -> Vec<String> {
+            self.inner.native_targets().iter().map(|t| t.uuid.clone()).collect()
+        }
+
+        #[wasm_bindgen(js_name = "findMainAppTarget")]
+        pub fn find_main_app_target(&self, platform: Option<String>) -> Option<String> {
+            let p = platform.as_deref().unwrap_or("ios");
+            self.inner.find_main_app_target(p).map(|t| t.uuid.clone())
+        }
+
+        #[wasm_bindgen(js_name = "getTargetName")]
+        pub fn get_target_name(&self, target_uuid: &str) -> Option<String> {
+            self.inner.get_target_name(target_uuid)
+        }
+
+        #[wasm_bindgen(js_name = "setTargetName")]
+        pub fn set_target_name(&mut self, target_uuid: &str, name: &str) -> bool {
+            self.inner.set_target_name(target_uuid, name)
+        }
+
+        #[wasm_bindgen(js_name = "createNativeTarget")]
+        pub fn create_native_target(&mut self, name: &str, product_type: &str, bundle_id: &str) -> Option<String> {
+            self.inner.create_native_target(name, product_type, bundle_id)
+        }
+
+        // ── Build settings ───────────────────────────────────────
+
+        #[wasm_bindgen(js_name = "getBuildSetting")]
+        pub fn get_build_setting(&self, target_uuid: &str, key: &str) -> Option<String> {
+            self.inner
+                .get_build_setting(target_uuid, key)
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+        }
+
+        #[wasm_bindgen(js_name = "setBuildSetting")]
+        pub fn set_build_setting(&mut self, target_uuid: &str, key: &str, value: &str) -> bool {
+            self.inner
+                .set_build_setting(target_uuid, key, crate::types::PlistValue::String(value.to_string()))
+        }
+
+        #[wasm_bindgen(js_name = "removeBuildSetting")]
+        pub fn remove_build_setting(&mut self, target_uuid: &str, key: &str) -> bool {
+            self.inner.remove_build_setting(target_uuid, key)
+        }
+
+        // ── Files & groups ───────────────────────────────────────
+
+        #[wasm_bindgen(js_name = "addFile")]
+        pub fn add_file(&mut self, group_uuid: &str, path: &str) -> Option<String> {
+            self.inner.add_file(group_uuid, path)
+        }
+
+        #[wasm_bindgen(js_name = "addGroup")]
+        pub fn add_group(&mut self, parent_uuid: &str, name: &str) -> Option<String> {
+            self.inner.add_group(parent_uuid, name)
+        }
+
+        #[wasm_bindgen(js_name = "getGroupChildren")]
+        pub fn get_group_children(&self, group_uuid: &str) -> Vec<String> {
+            self.inner.get_group_children(group_uuid)
+        }
+
+        // ── Build phases ─────────────────────────────────────────
+
+        #[wasm_bindgen(js_name = "ensureBuildPhase")]
+        pub fn ensure_build_phase(&mut self, target_uuid: &str, phase_isa: &str) -> Option<String> {
+            self.inner.ensure_build_phase(target_uuid, phase_isa)
+        }
+
+        #[wasm_bindgen(js_name = "addBuildFile")]
+        pub fn add_build_file(&mut self, phase_uuid: &str, file_ref_uuid: &str) -> Option<String> {
+            self.inner.add_build_file(phase_uuid, file_ref_uuid)
+        }
+
+        #[wasm_bindgen(js_name = "addFramework")]
+        pub fn add_framework(&mut self, target_uuid: &str, framework_name: &str) -> Option<String> {
+            self.inner.add_framework(target_uuid, framework_name)
+        }
+
+        // ── Dependencies & embedding ─────────────────────────────
+
+        #[wasm_bindgen(js_name = "addDependency")]
+        pub fn add_dependency(&mut self, target_uuid: &str, depends_on: &str) -> Option<String> {
+            self.inner.add_dependency(target_uuid, depends_on)
+        }
+
+        #[wasm_bindgen(js_name = "embedExtension")]
+        pub fn embed_extension(&mut self, host: &str, extension: &str) -> Option<String> {
+            self.inner.embed_extension(host, extension)
+        }
+
+        #[wasm_bindgen(js_name = "addFileSystemSyncGroup")]
+        pub fn add_file_system_sync_group(&mut self, target_uuid: &str, path: &str) -> Option<String> {
+            self.inner.add_file_system_sync_group(target_uuid, path)
+        }
+
+        // ── Generic access ───────────────────────────────────────
+
+        #[wasm_bindgen(js_name = "getObjectProperty")]
+        pub fn get_object_property(&self, uuid: &str, key: &str) -> Option<String> {
+            self.inner.get_object_property(uuid, key)
+        }
+
+        #[wasm_bindgen(js_name = "setObjectProperty")]
+        pub fn set_object_property(&mut self, uuid: &str, key: &str, value: &str) -> bool {
+            self.inner.set_object_property(uuid, key, value)
+        }
+
+        #[wasm_bindgen(js_name = "findObjectsByIsa")]
+        pub fn find_objects_by_isa(&self, isa: &str) -> Vec<String> {
+            self.inner.find_objects_by_isa(isa)
+        }
+
+        #[wasm_bindgen(js_name = "getUniqueId")]
+        pub fn get_unique_id(&self, seed: &str) -> String {
+            self.inner.get_unique_id(seed)
+        }
+
+        #[wasm_bindgen(js_name = "findOrphanedReferences")]
+        pub fn find_orphaned_references(&self) -> String {
+            let orphans = self.inner.find_orphaned_references();
+            serde_json::to_string(
+                &orphans
+                    .iter()
+                    .map(|o| {
+                        serde_json::json!({
+                            "referrerUuid": o.referrer_uuid,
+                            "referrerIsa": o.referrer_isa,
+                            "property": o.property,
+                            "orphanUuid": o.orphan_uuid,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_string())
+        }
+    }
+}
+
 #[cfg(feature = "napi")]
 mod napi_bindings {
     use napi::bindgen_prelude::*;
