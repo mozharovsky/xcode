@@ -42,9 +42,17 @@ writeFileSync("project.pbxproj", output);
 
 Parse a `.pbxproj` string into a JSON-compatible object. Matches the output of `@bacons/xcode/json`'s `parse()`.
 
+```js
+const project = parse(readFileSync("project.pbxproj", "utf8"));
+```
+
 #### `build(project: object): string`
 
 Serialize a JSON object back to `.pbxproj` format. Produces byte-identical output to `@bacons/xcode/json`'s `build()`.
+
+```js
+writeFileSync("project.pbxproj", build(project));
+```
 
 #### `buildFromJSON(json: string): string`
 
