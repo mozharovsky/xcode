@@ -13,6 +13,9 @@ yarn-error.log*
 index.js
 index.d.ts
 
+# wasm-pack build artifacts
+pkg/
+
 # OS
 .DS_Store
 Thumbs.db
