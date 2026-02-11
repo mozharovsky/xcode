@@ -60,6 +60,13 @@ mod napi_bindings {
             Ok(XcodeProject { inner })
         }
 
+        /// Parse a .pbxproj string into an XcodeProject (no file on disk needed).
+        #[napi(factory, js_name = "fromString")]
+        pub fn from_string(content: String) -> Result<Self> {
+            let inner = crate::project::XcodeProject::from_plist(&content).map_err(|e| Error::from_reason(e))?;
+            Ok(XcodeProject { inner })
+        }
+
         /// Convert the project to a JSON-compatible object.
         #[napi(js_name = "toJSON")]
         pub fn to_json(&self) -> Result<serde_json::Value> {
@@ -225,6 +232,53 @@ mod napi_bindings {
         #[napi]
         pub fn add_dependency(&mut self, target_uuid: String, depends_on_uuid: String) -> Option<String> {
             self.inner.add_dependency(&target_uuid, &depends_on_uuid)
+        }
+
+        /// Embed an extension target into a host app target.
+        /// Creates PBXCopyFilesBuildPhase with correct dstSubfolderSpec.
+        /// Returns the UUID of the copy files build phase.
+        #[napi]
+        pub fn embed_extension(&mut self, host_target_uuid: String, extension_target_uuid: String) -> Option<String> {
+            self.inner.embed_extension(&host_target_uuid, &extension_target_uuid)
+        }
+
+        /// Add a PBXFileSystemSynchronizedRootGroup to a target (Xcode 16+).
+        /// Returns the UUID of the sync group.
+        #[napi]
+        pub fn add_file_system_sync_group(&mut self, target_uuid: String, path: String) -> Option<String> {
+            self.inner.add_file_system_sync_group(&target_uuid, &path)
+        }
+
+        // ── Generic property access ──────────────────────────────
+
+        /// Get a string property from any object.
+        #[napi]
+        pub fn get_object_property(&self, uuid: String, key: String) -> Option<String> {
+            self.inner.get_object_property(&uuid, &key)
+        }
+
+        /// Set a string property on any object.
+        #[napi]
+        pub fn set_object_property(&mut self, uuid: String, key: String, value: String) -> bool {
+            self.inner.set_object_property(&uuid, &key, &value)
+        }
+
+        /// Find all object UUIDs matching a given ISA type.
+        #[napi]
+        pub fn find_objects_by_isa(&self, isa: String) -> Vec<String> {
+            self.inner.find_objects_by_isa(&isa)
+        }
+
+        /// Get the name of a target.
+        #[napi]
+        pub fn get_target_name(&self, target_uuid: String) -> Option<String> {
+            self.inner.get_target_name(&target_uuid)
+        }
+
+        /// Set the name and productName of a target.
+        #[napi]
+        pub fn set_target_name(&mut self, target_uuid: String, name: String) -> bool {
+            self.inner.set_target_name(&target_uuid, &name)
         }
     }
 }

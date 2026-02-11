@@ -829,6 +829,167 @@ impl XcodeProject {
         Some(target_uuid)
     }
 
+    // ── Generic object property access ───────────────────────────────
+
+    /// Get a string property from any object by UUID and key.
+    pub fn get_object_property(&self, uuid: &str, key: &str) -> Option<String> {
+        self.get_object(uuid)?.get_str(key).map(|s| s.to_string())
+    }
+
+    /// Set a string property on any object by UUID and key.
+    pub fn set_object_property(&mut self, uuid: &str, key: &str, value: &str) -> bool {
+        if let Some(obj) = self.get_object_mut(uuid) {
+            obj.set_str(key, value);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Find all object UUIDs matching a given ISA type.
+    pub fn find_objects_by_isa(&self, isa: &str) -> Vec<String> {
+        self.objects
+            .iter()
+            .filter(|(_, obj)| obj.isa == isa)
+            .map(|(uuid, _)| uuid.clone())
+            .collect()
+    }
+
+    // ── Target name access ─────────────────────────────────────────
+
+    /// Get the name of a target.
+    pub fn get_target_name(&self, target_uuid: &str) -> Option<String> {
+        self.get_object(target_uuid)?.get_str("name").map(|s| s.to_string())
+    }
+
+    /// Set the name and productName of a target.
+    pub fn set_target_name(&mut self, target_uuid: &str, name: &str) -> bool {
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            target.set_str("name", name);
+            target.set_str("productName", name);
+            true
+        } else {
+            false
+        }
+    }
+
+    // ── Extension embedding ────────────────────────────────────────
+
+    /// Embed an extension target into a host app target.
+    ///
+    /// Creates a PBXCopyFilesBuildPhase with the correct dstSubfolderSpec
+    /// based on the extension's product type, creates a PBXBuildFile
+    /// referencing the extension's product, and wires everything to the
+    /// host target.
+    ///
+    /// Returns the UUID of the PBXCopyFilesBuildPhase.
+    pub fn embed_extension(&mut self, host_target_uuid: &str, extension_target_uuid: &str) -> Option<String> {
+        // Get extension target's product type and product reference
+        let ext_target = self.get_object(extension_target_uuid)?;
+        let product_type = ext_target.get_str("productType")?.to_string();
+        let product_ref_uuid = ext_target.get_str("productReference")?.to_string();
+
+        // Determine dstSubfolderSpec and phase name from product type
+        let (dst_subfolder_spec, dst_path, phase_name) = match product_type.as_str() {
+            "com.apple.product-type.application.on-demand-install-capable" => {
+                (16, "$(CONTENTS_FOLDER_PATH)/AppClips", "Embed App Clips")
+            }
+            "com.apple.product-type.application" => (16, "$(CONTENTS_FOLDER_PATH)/Watch", "Embed Watch Content"),
+            "com.apple.product-type.extensionkit-extension" => {
+                (16, "$(EXTENSIONS_FOLDER_PATH)", "Embed ExtensionKit Extensions")
+            }
+            _ => {
+                // Default: PlugIns folder for app extensions
+                (13, "", "Embed Foundation Extensions")
+            }
+        };
+
+        // Create PBXBuildFile referencing the extension product
+        let mut build_file_props = IndexMap::new();
+        build_file_props.insert("isa".to_string(), PlistValue::String("PBXBuildFile".to_string()));
+        build_file_props.insert("fileRef".to_string(), PlistValue::String(product_ref_uuid));
+        let mut settings = IndexMap::new();
+        settings.insert(
+            "ATTRIBUTES".to_string(),
+            PlistValue::Array(vec![PlistValue::String("RemoveHeadersOnCopy".to_string())]),
+        );
+        build_file_props.insert("settings".to_string(), PlistValue::Object(settings));
+        let build_file_uuid = self.create_object(build_file_props);
+
+        // Create PBXCopyFilesBuildPhase
+        let mut phase_props = IndexMap::new();
+        phase_props.insert(
+            "isa".to_string(),
+            PlistValue::String("PBXCopyFilesBuildPhase".to_string()),
+        );
+        phase_props.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
+        phase_props.insert("dstPath".to_string(), PlistValue::String(dst_path.to_string()));
+        phase_props.insert("dstSubfolderSpec".to_string(), PlistValue::Integer(dst_subfolder_spec));
+        phase_props.insert(
+            "files".to_string(),
+            PlistValue::Array(vec![PlistValue::String(build_file_uuid)]),
+        );
+        phase_props.insert("name".to_string(), PlistValue::String(phase_name.to_string()));
+        phase_props.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+        let phase_uuid = self.create_object(phase_props);
+
+        // Add phase to host target's buildPhases
+        if let Some(host) = self.get_object_mut(host_target_uuid) {
+            if let Some(PlistValue::Array(ref mut phases)) = host.props.get_mut("buildPhases") {
+                phases.push(PlistValue::String(phase_uuid.clone()));
+            }
+        }
+
+        Some(phase_uuid)
+    }
+
+    // ── Xcode 16+ file system sync groups ──────────────────────────
+
+    /// Add a PBXFileSystemSynchronizedRootGroup to a target.
+    ///
+    /// Creates the sync group, adds it to the target's
+    /// fileSystemSynchronizedGroups array, and adds it as a child
+    /// of the main group.
+    ///
+    /// Returns the UUID of the sync group.
+    pub fn add_file_system_sync_group(&mut self, target_uuid: &str, path: &str) -> Option<String> {
+        let mut props = IndexMap::new();
+        props.insert(
+            "isa".to_string(),
+            PlistValue::String("PBXFileSystemSynchronizedRootGroup".to_string()),
+        );
+        props.insert("path".to_string(), PlistValue::String(path.to_string()));
+        props.insert("sourceTree".to_string(), PlistValue::String("<group>".to_string()));
+        let sync_group_uuid = self.create_object(props);
+
+        // Add to target's fileSystemSynchronizedGroups
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            match target.props.get_mut("fileSystemSynchronizedGroups") {
+                Some(PlistValue::Array(ref mut groups)) => {
+                    groups.push(PlistValue::String(sync_group_uuid.clone()));
+                }
+                _ => {
+                    target.props.insert(
+                        "fileSystemSynchronizedGroups".to_string(),
+                        PlistValue::Array(vec![PlistValue::String(sync_group_uuid.clone())]),
+                    );
+                }
+            }
+        }
+
+        // Add to main group's children
+        let main_group = self.main_group_uuid();
+        if let Some(mg_uuid) = main_group {
+            if let Some(group) = self.get_object_mut(&mg_uuid) {
+                if let Some(PlistValue::Array(ref mut children)) = group.props.get_mut("children") {
+                    children.push(PlistValue::String(sync_group_uuid.clone()));
+                }
+            }
+        }
+
+        Some(sync_group_uuid)
+    }
+
     /// Remove a build setting from all configurations for a target.
     pub fn remove_build_setting(&mut self, target_uuid: &str, key: &str) -> bool {
         let target = match self.get_object(target_uuid) {
