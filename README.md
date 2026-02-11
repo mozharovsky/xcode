@@ -72,24 +72,30 @@ const output = parseAndBuild(readFileSync("project.pbxproj", "utf8"));
 
 ### High-Level (XcodeProject)
 
-#### `XcodeProject.open(filePath: string): XcodeProject`
+#### `XcodeProject.open(filePath)` / `XcodeProject.fromString(content)`
 
-Open and parse a `.pbxproj` file from disk.
+Open from disk or parse from a string (e.g. content fetched over the network).
 
 ```js
 import { XcodeProject } from "@xcodekit/xcode";
 
+// From disk
 const project = XcodeProject.open("ios/MyApp.xcodeproj/project.pbxproj");
+
+// From string (no file on disk needed)
+const project = XcodeProject.fromString(pbxprojContent);
 
 // Properties
 project.archiveVersion; // 1
-project.objectVersion;  // 46
-project.filePath;       // the path it was opened from
-project.mainGroupUuid;  // root group UUID
+project.objectVersion; // 46
+project.filePath; // path if opened from disk, null if fromString
+project.mainGroupUuid; // root group UUID
 
 // Targets
 const targets = project.getNativeTargets(); // UUID[]
 const mainApp = project.findMainAppTarget("ios"); // UUID | null
+project.getTargetName(mainApp); // "MyApp"
+project.setTargetName(mainApp, "NewName");
 
 // Build settings
 project.getBuildSetting(targetUuid, "PRODUCT_BUNDLE_IDENTIFIER");
@@ -112,11 +118,20 @@ project.addFramework(targetUuid, "SwiftUI");
 const widgetTarget = project.createNativeTarget(
   "MyWidget",
   "com.apple.product-type.app-extension",
-  "com.example.mywidget"
+  "com.example.mywidget",
 );
 
-// Target dependencies
+// Embed extension into host app
 project.addDependency(mainApp, widgetTarget);
+project.embedExtension(mainApp, widgetTarget);
+
+// Xcode 16+ file system sync groups
+project.addFileSystemSyncGroup(widgetTarget, "MyWidget");
+
+// Generic object access
+project.getObjectProperty(uuid, "path");
+project.setObjectProperty(uuid, "path", "new/path");
+const proxies = project.findObjectsByIsa("PBXContainerItemProxy");
 
 // Validation
 const orphans = project.findOrphanedReferences();
@@ -124,7 +139,7 @@ const orphans = project.findOrphanedReferences();
 
 // Serialize
 const pbxproj = project.toBuild(); // string
-const json = project.toJSON();     // object
+const json = project.toJSON(); // object
 
 // Write back to disk
 project.save();
@@ -141,40 +156,40 @@ Benchmarked on Apple M4 Pro, Node.js v24. Median of 200 iterations.
 
 ### Parse
 
-| Fixture | Rust | TypeScript | Speedup |
-|---------|------|-----------|---------|
-| swift-protobuf (257 KB) | 3.7 ms | 43.5 ms | **11.6x** |
-| Cocoa-Application (166 KB) | 3.2 ms | 17.3 ms | **5.5x** |
-| AFNetworking (99 KB) | 1.8 ms | 6.6 ms | **3.8x** |
-| watch (48 KB) | 0.9 ms | 2.1 ms | **2.2x** |
-| project (19 KB) | 0.4 ms | 0.8 ms | **2.2x** |
+| Fixture                    | Rust   | TypeScript | Speedup   |
+| -------------------------- | ------ | ---------- | --------- |
+| swift-protobuf (257 KB)    | 3.7 ms | 43.5 ms    | **11.6x** |
+| Cocoa-Application (166 KB) | 3.2 ms | 17.3 ms    | **5.5x**  |
+| AFNetworking (99 KB)       | 1.8 ms | 6.6 ms     | **3.8x**  |
+| watch (48 KB)              | 0.9 ms | 2.1 ms     | **2.2x**  |
+| project (19 KB)            | 0.4 ms | 0.8 ms     | **2.2x**  |
 
 ### Round-Trip (parse + build)
 
-| Fixture | Rust | TypeScript | Speedup |
-|---------|------|-----------|---------|
-| swift-protobuf (257 KB) | 9.1 ms | 63.1 ms | **6.9x** |
-| Cocoa-Application (166 KB) | 8.0 ms | 22.2 ms | **2.8x** |
-| AFNetworking (99 KB) | 4.2 ms | 9.3 ms | **2.2x** |
-| watch (48 KB) | 2.1 ms | 2.7 ms | **1.3x** |
-| project (19 KB) | 0.8 ms | 1.0 ms | **1.2x** |
+| Fixture                    | Rust   | TypeScript | Speedup  |
+| -------------------------- | ------ | ---------- | -------- |
+| swift-protobuf (257 KB)    | 9.1 ms | 63.1 ms    | **6.9x** |
+| Cocoa-Application (166 KB) | 8.0 ms | 22.2 ms    | **2.8x** |
+| AFNetworking (99 KB)       | 4.2 ms | 9.3 ms     | **2.2x** |
+| watch (48 KB)              | 2.1 ms | 2.7 ms     | **1.3x** |
+| project (19 KB)            | 0.8 ms | 1.0 ms     | **1.2x** |
 
 ### parseAndBuild (zero marshalling)
 
-| Fixture | Rust | TypeScript | Speedup |
-|---------|------|-----------|---------|
-| swift-protobuf (257 KB) | 4.6 ms | 62.9 ms | **13.6x** |
-| Cocoa-Application (166 KB) | 3.8 ms | 22.0 ms | **5.8x** |
-| AFNetworking (99 KB) | 1.9 ms | 9.1 ms | **4.9x** |
-| watch (48 KB) | 0.9 ms | 2.6 ms | **2.8x** |
-| project (19 KB) | 0.4 ms | 1.0 ms | **2.7x** |
+| Fixture                    | Rust   | TypeScript | Speedup   |
+| -------------------------- | ------ | ---------- | --------- |
+| swift-protobuf (257 KB)    | 4.6 ms | 62.9 ms    | **13.6x** |
+| Cocoa-Application (166 KB) | 3.8 ms | 22.0 ms    | **5.8x**  |
+| AFNetworking (99 KB)       | 1.9 ms | 9.1 ms     | **4.9x**  |
+| watch (48 KB)              | 0.9 ms | 2.6 ms     | **2.8x**  |
+| project (19 KB)            | 0.4 ms | 1.0 ms     | **2.7x**  |
 
 ### Package Size
 
-| | @bacons/xcode | @xcodekit/xcode |
-|-|--------------|-------------------|
-| Unpacked | 1.1 MB | 559 KB |
-| Gzipped | ~400 KB | ~270 KB |
+|          | @bacons/xcode | @xcodekit/xcode |
+| -------- | ------------- | --------------- |
+| Unpacked | 1.1 MB        | 559 KB          |
+| Gzipped  | ~400 KB       | ~270 KB         |
 
 Run benchmarks yourself:
 
@@ -186,13 +201,13 @@ make bench-js     # Rust vs TypeScript head-to-head
 
 ## Choosing the Right Function
 
-| Use case | Function | Notes |
-|----------|----------|-------|
-| Parse only | `parse(text)` | 2-12x faster than TS |
-| Build from JS object | `build(obj)` | Fastest on large files (>100 KB) |
-| Build from JSON string | `buildFromJSON(json)` | Faster than `build()` on all sizes |
-| Full round-trip | `parseAndBuild(text)` | Fastest path, zero JS/Rust overhead |
-| Project manipulation | `XcodeProject.open()` | Stays in Rust, use `.toBuild()` to serialize |
+| Use case               | Function              | Notes                                        |
+| ---------------------- | --------------------- | -------------------------------------------- |
+| Parse only             | `parse(text)`         | 2-12x faster than TS                         |
+| Build from JS object   | `build(obj)`          | Fastest on large files (>100 KB)             |
+| Build from JSON string | `buildFromJSON(json)` | Faster than `build()` on all sizes           |
+| Full round-trip        | `parseAndBuild(text)` | Fastest path, zero JS/Rust overhead          |
+| Project manipulation   | `XcodeProject.open()` | Stays in Rust, use `.toBuild()` to serialize |
 
 ## Compatibility
 
@@ -205,11 +220,11 @@ make bench-js     # Rust vs TypeScript head-to-head
 
 ## Supported Platforms
 
-| Platform | Architecture |
-|----------|-------------|
-| macOS | arm64 (Apple Silicon), x64 (Intel) |
-| Linux | x64 (glibc), arm64 (glibc) |
-| Windows | x64 (MSVC) |
+| Platform | Architecture                       |
+| -------- | ---------------------------------- |
+| macOS    | arm64 (Apple Silicon), x64 (Intel) |
+| Linux    | x64 (glibc), arm64 (glibc)         |
+| Windows  | x64 (MSVC)                         |
 
 ## Development
 
