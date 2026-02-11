@@ -47,13 +47,7 @@ export type BoolNumber = 0 | 1;
 export type BoolString = "YES" | "NO" | "YES_ERROR" | "YES_AGGRESSIVE";
 
 /** Source tree reference types. */
-export type SourceTree =
-  | "BUILT_PRODUCTS_DIR"
-  | "DEVELOPER_DIR"
-  | "SOURCE_ROOT"
-  | "SDKROOT"
-  | "<group>"
-  | "<absolute>";
+export type SourceTree = "BUILT_PRODUCTS_DIR" | "DEVELOPER_DIR" | "SOURCE_ROOT" | "SDKROOT" | "<group>" | "<absolute>";
 
 /** CopyFilesBuildPhase destination subfolder spec. */
 export enum SubFolder {
