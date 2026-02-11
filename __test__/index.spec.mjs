@@ -395,6 +395,34 @@ if (native) {
     t.true(fileRefs.length > 0);
   });
 
+  test("renameTarget cascades through project", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+    const oldName = project.getTargetName(target);
+
+    project.renameTarget(target, oldName, "BrandNewApp");
+
+    // Target name updated
+    t.is(project.getTargetName(target), "BrandNewApp");
+
+    project.save();
+    const output = readFileSync(pbxpath, "utf8");
+
+    // Product reference updated
+    t.true(output.includes("BrandNewApp.app"));
+    t.false(output.includes(`${oldName}.app`));
+
+    // Group path updated
+    t.true(output.includes("BrandNewApp"));
+
+    // Still valid pbxproj
+    t.true(output.startsWith("// !$*UTF8*$!"));
+  });
+
   test("embedExtension wires copy files phase", (t) => {
     const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
     const pbxpath = join(tmp, "project.pbxproj");

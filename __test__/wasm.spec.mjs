@@ -128,6 +128,21 @@ if (wasm) {
     t.true(output.includes("Embed Foundation Extensions"));
   });
 
+  test("XcodeProject renameTarget cascades", (t) => {
+    const text = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+    const project = new wasm.XcodeProject(text);
+
+    const target = project.findMainAppTarget("ios");
+    const oldName = project.getTargetName(target);
+
+    project.renameTarget(target, oldName, "RenamedApp");
+    t.is(project.getTargetName(target), "RenamedApp");
+
+    const output = project.toBuild();
+    t.true(output.includes("RenamedApp.app"));
+    t.true(output.includes("RenamedApp"));
+  });
+
   test("XcodeProject generic property access", (t) => {
     const text = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
     const project = new wasm.XcodeProject(text);
