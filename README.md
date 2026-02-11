@@ -98,6 +98,7 @@ const targets = project.getNativeTargets(); // UUID[]
 const mainApp = project.findMainAppTarget("ios"); // UUID | null
 project.getTargetName(mainApp); // "MyApp"
 project.setTargetName(mainApp, "NewName");
+project.renameTarget(mainApp, "OldName", "NewName"); // cascades to groups, product refs, proxies
 
 // Build settings
 project.getBuildSetting(targetUuid, "PRODUCT_BUNDLE_IDENTIFIER");
@@ -154,13 +155,13 @@ All `XcodeProject` methods operate in Rust/WASM — only primitive strings cross
 
 ### WASM
 
-The WASM build (`@xcodekit/xcode-wasm`) has the same API with two differences:
+The WASM build (`@xcodekit/xcode-wasm`) has the same API with minor differences:
 
 - `parse()` / `build()` work with JSON **strings** (not JS objects) — call `JSON.parse()` / `JSON.stringify()` on your side
 - `XcodeProject` is created with `new XcodeProject(content)` instead of factory methods
-- No `open()` / `save()` — no filesystem in WASM
 
 ```js
+// Browser / Deno / Cloudflare Workers
 import { parse, build, XcodeProject } from "@xcodekit/xcode-wasm";
 
 // Low-level
@@ -172,6 +173,18 @@ const output = build(json); // accepts JSON string
 const xcode = new XcodeProject(text);
 xcode.setBuildSetting(target, "SWIFT_VERSION", "6.0");
 const pbxproj = xcode.toBuild();
+```
+
+#### Node.js with filesystem access
+
+Use the `/node` subpath to get `open()` and `save()`:
+
+```js
+const { XcodeProject } = require("@xcodekit/xcode-wasm/node");
+
+const project = XcodeProject.open("project.pbxproj");
+project.setBuildSetting(target, "SWIFT_VERSION", "6.0");
+project.save();
 ```
 
 ## Performance
