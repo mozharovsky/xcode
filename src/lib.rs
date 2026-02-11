@@ -45,7 +45,6 @@ mod napi_bindings {
         Ok(crate::writer::serializer::build(&plist))
     }
 
-
     /// XcodeProject class for high-level API.
     #[napi]
     pub struct XcodeProject {
@@ -57,8 +56,7 @@ mod napi_bindings {
         /// Open and parse a .pbxproj file from disk.
         #[napi(factory)]
         pub fn open(file_path: String) -> Result<Self> {
-            let inner = crate::project::XcodeProject::open(&file_path)
-                .map_err(|e| Error::from_reason(e))?;
+            let inner = crate::project::XcodeProject::open(&file_path).map_err(|e| Error::from_reason(e))?;
             Ok(XcodeProject { inner })
         }
 
@@ -101,41 +99,23 @@ mod napi_bindings {
         /// Get all native target UUIDs.
         #[napi]
         pub fn get_native_targets(&self) -> Vec<String> {
-            self.inner
-                .native_targets()
-                .iter()
-                .map(|t| t.uuid.clone())
-                .collect()
+            self.inner.native_targets().iter().map(|t| t.uuid.clone()).collect()
         }
 
         /// Get a build setting value from a target.
         #[napi]
-        pub fn get_build_setting(
-            &self,
-            target_uuid: String,
-            key: String,
-        ) -> Result<serde_json::Value> {
+        pub fn get_build_setting(&self, target_uuid: String, key: String) -> Result<serde_json::Value> {
             match self.inner.get_build_setting(&target_uuid, &key) {
-                Some(val) => {
-                    serde_json::to_value(&val).map_err(|e| Error::from_reason(e.to_string()))
-                }
+                Some(val) => serde_json::to_value(&val).map_err(|e| Error::from_reason(e.to_string())),
                 None => Ok(serde_json::Value::Null),
             }
         }
 
         /// Set a build setting on all configurations for a target.
         #[napi]
-        pub fn set_build_setting(
-            &mut self,
-            target_uuid: String,
-            key: String,
-            value: String,
-        ) -> bool {
-            self.inner.set_build_setting(
-                &target_uuid,
-                &key,
-                crate::types::PlistValue::String(value),
-            )
+        pub fn set_build_setting(&mut self, target_uuid: String, key: String, value: String) -> bool {
+            self.inner
+                .set_build_setting(&target_uuid, &key, crate::types::PlistValue::String(value))
         }
 
         /// Remove a build setting from all configurations for a target.
@@ -166,15 +146,85 @@ mod napi_bindings {
         #[napi]
         pub fn find_main_app_target(&self, platform: Option<String>) -> Option<String> {
             let platform = platform.as_deref().unwrap_or("ios");
-            self.inner
-                .find_main_app_target(platform)
-                .map(|t| t.uuid.clone())
+            self.inner.find_main_app_target(platform).map(|t| t.uuid.clone())
         }
 
         /// Generate a unique UUID.
         #[napi]
         pub fn get_unique_id(&self, seed: String) -> String {
             self.inner.get_unique_id(&seed)
+        }
+
+        // ── File & group operations ──────────────────────────────
+
+        /// Get the main group UUID.
+        #[napi(getter, js_name = "mainGroupUuid")]
+        pub fn main_group_uuid(&self) -> Option<String> {
+            self.inner.main_group_uuid()
+        }
+
+        /// Get children UUIDs of a group.
+        #[napi]
+        pub fn get_group_children(&self, group_uuid: String) -> Vec<String> {
+            self.inner.get_group_children(&group_uuid)
+        }
+
+        /// Add a file reference to the project and a group.
+        /// Returns the UUID of the new PBXFileReference.
+        #[napi]
+        pub fn add_file(&mut self, group_uuid: String, path: String) -> Option<String> {
+            self.inner.add_file(&group_uuid, &path)
+        }
+
+        /// Create a group and add it as a child of a parent group.
+        /// Returns the UUID of the new PBXGroup.
+        #[napi]
+        pub fn add_group(&mut self, parent_uuid: String, name: String) -> Option<String> {
+            self.inner.add_group(&parent_uuid, &name)
+        }
+
+        // ── Build phase operations ───────────────────────────────
+
+        /// Add a build file to a build phase.
+        /// Returns the UUID of the new PBXBuildFile.
+        #[napi]
+        pub fn add_build_file(&mut self, phase_uuid: String, file_ref_uuid: String) -> Option<String> {
+            self.inner.add_build_file(&phase_uuid, &file_ref_uuid)
+        }
+
+        /// Find or create a build phase for a target.
+        /// Returns the UUID of the build phase.
+        #[napi]
+        pub fn ensure_build_phase(&mut self, target_uuid: String, phase_isa: String) -> Option<String> {
+            self.inner.ensure_build_phase(&target_uuid, &phase_isa)
+        }
+
+        /// Add a framework to a target.
+        /// Returns the UUID of the PBXBuildFile.
+        #[napi]
+        pub fn add_framework(&mut self, target_uuid: String, framework_name: String) -> Option<String> {
+            self.inner.add_framework(&target_uuid, &framework_name)
+        }
+
+        // ── Target operations ────────────────────────────────────
+
+        /// Create a native target with Debug/Release configs, standard build phases, and product ref.
+        /// Returns the UUID of the new PBXNativeTarget.
+        #[napi]
+        pub fn create_native_target(
+            &mut self,
+            name: String,
+            product_type: String,
+            bundle_id: String,
+        ) -> Option<String> {
+            self.inner.create_native_target(&name, &product_type, &bundle_id)
+        }
+
+        /// Add a dependency from one target to another.
+        /// Returns the UUID of the PBXTargetDependency.
+        #[napi]
+        pub fn add_dependency(&mut self, target_uuid: String, depends_on_uuid: String) -> Option<String> {
+            self.inner.add_dependency(&target_uuid, &depends_on_uuid)
         }
     }
 }

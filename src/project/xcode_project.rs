@@ -38,8 +38,7 @@ pub struct XcodeProject {
 impl XcodeProject {
     /// Open and parse a .pbxproj file from disk.
     pub fn open(file_path: &str) -> Result<Self, String> {
-        let contents =
-            std::fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
+        let contents = std::fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
         let mut project = Self::from_plist(&contents)?;
         project.file_path = Some(file_path.to_string());
         Ok(project)
@@ -53,19 +52,11 @@ impl XcodeProject {
 
     /// Create from an already-parsed PlistValue.
     pub fn from_plist_value(plist: &PlistValue) -> Result<Self, String> {
-        let root = plist
-            .as_object()
-            .ok_or("Root must be an object")?;
+        let root = plist.as_object().ok_or("Root must be an object")?;
 
-        let archive_version = root
-            .get("archiveVersion")
-            .and_then(|v| v.as_integer())
-            .unwrap_or(1);
+        let archive_version = root.get("archiveVersion").and_then(|v| v.as_integer()).unwrap_or(1);
 
-        let object_version = root
-            .get("objectVersion")
-            .and_then(|v| v.as_integer())
-            .unwrap_or(46);
+        let object_version = root.get("objectVersion").and_then(|v| v.as_integer()).unwrap_or(46);
 
         let classes = root
             .get("classes")
@@ -102,10 +93,7 @@ impl XcodeProject {
                 ));
             }
         } else {
-            return Err(format!(
-                "Root object \"{}\" not found in objects",
-                root_object_uuid
-            ));
+            return Err(format!("Root object \"{}\" not found in objects", root_object_uuid));
         }
 
         Ok(XcodeProject {
@@ -121,18 +109,9 @@ impl XcodeProject {
     /// Convert the project to a PlistValue for serialization.
     pub fn to_plist(&self) -> PlistValue {
         let mut root = IndexMap::new();
-        root.insert(
-            "archiveVersion".to_string(),
-            PlistValue::Integer(self.archive_version),
-        );
-        root.insert(
-            "classes".to_string(),
-            PlistValue::Object(self.classes.clone()),
-        );
-        root.insert(
-            "objectVersion".to_string(),
-            PlistValue::Integer(self.object_version),
-        );
+        root.insert("archiveVersion".to_string(), PlistValue::Integer(self.archive_version));
+        root.insert("classes".to_string(), PlistValue::Object(self.classes.clone()));
+        root.insert("objectVersion".to_string(), PlistValue::Integer(self.object_version));
 
         // Build objects map
         let mut objects = IndexMap::new();
@@ -161,10 +140,7 @@ impl XcodeProject {
 
     /// Write the project to its original file.
     pub fn save(&self) -> Result<(), String> {
-        let path = self
-            .file_path
-            .as_ref()
-            .ok_or("No file path set")?;
+        let path = self.file_path.as_ref().ok_or("No file path set")?;
         let output = self.to_pbxproj();
         std::fs::write(path, output).map_err(|e| e.to_string())
     }
@@ -219,10 +195,7 @@ impl XcodeProject {
 
     /// Get all objects with a specific ISA type.
     pub fn objects_by_isa(&self, isa: &str) -> Vec<&PbxObject> {
-        self.objects
-            .values()
-            .filter(|obj| obj.isa == isa)
-            .collect()
+        self.objects.values().filter(|obj| obj.isa == isa).collect()
     }
 
     /// Get all native targets.
@@ -232,10 +205,7 @@ impl XcodeProject {
 
     /// Find objects that reference a given UUID.
     pub fn get_referrers(&self, uuid: &str) -> Vec<&PbxObject> {
-        self.objects
-            .values()
-            .filter(|obj| obj.is_referencing(uuid))
-            .collect()
+        self.objects.values().filter(|obj| obj.is_referencing(uuid)).collect()
     }
 
     /// Generate a unique UUID for the project.
@@ -296,9 +266,7 @@ impl XcodeProject {
                         PlistValue::Array(items) => {
                             for item in items {
                                 if let Some(ref_uuid) = item.as_str() {
-                                    if !ref_uuid.is_empty()
-                                        && !self.objects.contains_key(ref_uuid)
-                                    {
+                                    if !ref_uuid.is_empty() && !self.objects.contains_key(ref_uuid) {
                                         orphans.push(OrphanedReference {
                                             referrer_uuid: uuid.clone(),
                                             referrer_isa: obj.isa.clone(),
@@ -345,11 +313,7 @@ impl XcodeProject {
     pub fn target_uuids(&self) -> Vec<String> {
         self.root_object()
             .and_then(|root| root.get_array("targets"))
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -357,9 +321,7 @@ impl XcodeProject {
     pub fn find_target_by_product_type(&self, product_type: &str) -> Option<&PbxObject> {
         for uuid in self.target_uuids() {
             if let Some(target) = self.get_object(&uuid) {
-                if target.isa == "PBXNativeTarget"
-                    && target.get_str("productType") == Some(product_type)
-                {
+                if target.isa == "PBXNativeTarget" && target.get_str("productType") == Some(product_type) {
                     return Some(target);
                 }
             }
@@ -383,8 +345,7 @@ impl XcodeProject {
             .iter()
             .filter_map(|uuid| self.get_object(uuid))
             .filter(|t| {
-                t.isa == "PBXNativeTarget"
-                    && t.get_str("productType") == Some("com.apple.product-type.application")
+                t.isa == "PBXNativeTarget" && t.get_str("productType") == Some("com.apple.product-type.application")
             })
             .collect();
 
@@ -396,8 +357,7 @@ impl XcodeProject {
                         for config_val in configs {
                             if let Some(config_uuid) = config_val.as_str() {
                                 if let Some(config) = self.get_object(config_uuid) {
-                                    if let Some(build_settings) = config.get_object("buildSettings")
-                                    {
+                                    if let Some(build_settings) = config.get_object("buildSettings") {
                                         if build_settings.contains_key(deployment_key) {
                                             return Some(*target);
                                         }
@@ -463,12 +423,7 @@ impl XcodeProject {
     }
 
     /// Set a build setting on all configurations for a target.
-    pub fn set_build_setting(
-        &mut self,
-        target_uuid: &str,
-        key: &str,
-        value: PlistValue,
-    ) -> bool {
+    pub fn set_build_setting(&mut self, target_uuid: &str, key: &str, value: PlistValue) -> bool {
         let target = match self.get_object(target_uuid) {
             Some(t) => t,
             None => return false,
@@ -483,11 +438,7 @@ impl XcodeProject {
         };
         let config_uuids: Vec<String> = config_list
             .get_array("buildConfigurations")
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default();
 
         for config_uuid in config_uuids {
@@ -498,6 +449,384 @@ impl XcodeProject {
             }
         }
         true
+    }
+
+    // ── File & group operations ──────────────────────────────────────
+
+    /// Get children UUIDs of a group.
+    pub fn get_group_children(&self, group_uuid: &str) -> Vec<String> {
+        self.get_object(group_uuid)
+            .and_then(|obj| obj.get_array("children"))
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default()
+    }
+
+    /// Add a file reference to the project and a group.
+    /// Returns the UUID of the new PBXFileReference.
+    pub fn add_file(&mut self, group_uuid: &str, path: &str) -> Option<String> {
+        let ext = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+
+        let file_type = crate::types::constants::FILE_TYPES_BY_EXTENSION
+            .get(ext)
+            .copied()
+            .unwrap_or("file");
+
+        let source_tree = crate::types::constants::SOURCETREE_BY_FILETYPE
+            .get(file_type)
+            .copied()
+            .unwrap_or("<group>");
+
+        let name = std::path::Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(path);
+
+        let mut props = IndexMap::new();
+        props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
+        props.insert("fileEncoding".to_string(), PlistValue::Integer(4));
+        props.insert(
+            "lastKnownFileType".to_string(),
+            PlistValue::String(file_type.to_string()),
+        );
+        if name != path {
+            props.insert("name".to_string(), PlistValue::String(name.to_string()));
+        }
+        props.insert("path".to_string(), PlistValue::String(path.to_string()));
+        props.insert("sourceTree".to_string(), PlistValue::String(source_tree.to_string()));
+
+        let file_uuid = self.create_object(props);
+
+        // Add to group's children
+        if let Some(group) = self.get_object_mut(group_uuid) {
+            if let Some(PlistValue::Array(ref mut children)) = group.props.get_mut("children") {
+                children.push(PlistValue::String(file_uuid.clone()));
+            }
+        }
+
+        Some(file_uuid)
+    }
+
+    /// Create a group and add it as a child of a parent group.
+    /// Returns the UUID of the new PBXGroup.
+    pub fn add_group(&mut self, parent_uuid: &str, name: &str) -> Option<String> {
+        let mut props = IndexMap::new();
+        props.insert("isa".to_string(), PlistValue::String("PBXGroup".to_string()));
+        props.insert("children".to_string(), PlistValue::Array(vec![]));
+        props.insert("name".to_string(), PlistValue::String(name.to_string()));
+        props.insert("sourceTree".to_string(), PlistValue::String("<group>".to_string()));
+
+        let group_uuid = self.create_object(props);
+
+        if let Some(parent) = self.get_object_mut(parent_uuid) {
+            if let Some(PlistValue::Array(ref mut children)) = parent.props.get_mut("children") {
+                children.push(PlistValue::String(group_uuid.clone()));
+            }
+        }
+
+        Some(group_uuid)
+    }
+
+    // ── Build phase operations ─────────────────────────────────────
+
+    /// Add a build file to a build phase (e.g. adding a source file to the Sources phase).
+    /// Returns the UUID of the new PBXBuildFile.
+    pub fn add_build_file(&mut self, phase_uuid: &str, file_ref_uuid: &str) -> Option<String> {
+        let mut props = IndexMap::new();
+        props.insert("isa".to_string(), PlistValue::String("PBXBuildFile".to_string()));
+        props.insert("fileRef".to_string(), PlistValue::String(file_ref_uuid.to_string()));
+
+        let build_file_uuid = self.create_object(props);
+
+        if let Some(phase) = self.get_object_mut(phase_uuid) {
+            if let Some(PlistValue::Array(ref mut files)) = phase.props.get_mut("files") {
+                files.push(PlistValue::String(build_file_uuid.clone()));
+            }
+        }
+
+        Some(build_file_uuid)
+    }
+
+    /// Find or create a build phase of a given type for a target.
+    /// Returns the UUID of the build phase.
+    pub fn ensure_build_phase(&mut self, target_uuid: &str, phase_isa: &str) -> Option<String> {
+        // Check if it already exists
+        if let Some(existing) = self.find_build_phase(target_uuid, phase_isa) {
+            return Some(existing.uuid.clone());
+        }
+
+        // Create new phase
+        let mut props = IndexMap::new();
+        props.insert("isa".to_string(), PlistValue::String(phase_isa.to_string()));
+        props.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
+        props.insert("files".to_string(), PlistValue::Array(vec![]));
+        props.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+
+        let phase_uuid = self.create_object(props);
+
+        // Add to target's buildPhases
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            if let Some(PlistValue::Array(ref mut phases)) = target.props.get_mut("buildPhases") {
+                phases.push(PlistValue::String(phase_uuid.clone()));
+            }
+        }
+
+        Some(phase_uuid)
+    }
+
+    /// Add a framework to a target (creates file reference + build file + adds to Frameworks phase).
+    /// Returns the UUID of the PBXBuildFile.
+    pub fn add_framework(&mut self, target_uuid: &str, framework_name: &str) -> Option<String> {
+        let name = if framework_name.ends_with(".framework") {
+            framework_name.to_string()
+        } else {
+            format!("{}.framework", framework_name)
+        };
+
+        let path = format!("System/Library/Frameworks/{}", name);
+
+        // Create PBXFileReference for the framework
+        let mut file_props = IndexMap::new();
+        file_props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
+        file_props.insert(
+            "lastKnownFileType".to_string(),
+            PlistValue::String("wrapper.framework".to_string()),
+        );
+        file_props.insert("name".to_string(), PlistValue::String(name.clone()));
+        file_props.insert("path".to_string(), PlistValue::String(path));
+        file_props.insert("sourceTree".to_string(), PlistValue::String("SDKROOT".to_string()));
+
+        let file_ref_uuid = self.create_object(file_props);
+
+        // Ensure Frameworks build phase exists
+        let phase_uuid = self.ensure_build_phase(target_uuid, "PBXFrameworksBuildPhase")?;
+
+        // Add build file
+        self.add_build_file(&phase_uuid, &file_ref_uuid)
+    }
+
+    // ── Target operations ──────────────────────────────────────────
+
+    /// Add a dependency from one target to another.
+    /// Returns the UUID of the PBXTargetDependency.
+    pub fn add_dependency(&mut self, target_uuid: &str, depends_on_uuid: &str) -> Option<String> {
+        // Create PBXContainerItemProxy
+        let mut proxy_props = IndexMap::new();
+        proxy_props.insert(
+            "isa".to_string(),
+            PlistValue::String("PBXContainerItemProxy".to_string()),
+        );
+        proxy_props.insert(
+            "containerPortal".to_string(),
+            PlistValue::String(self.root_object_uuid.clone()),
+        );
+        proxy_props.insert("proxyType".to_string(), PlistValue::Integer(1));
+        proxy_props.insert(
+            "remoteGlobalIDString".to_string(),
+            PlistValue::String(depends_on_uuid.to_string()),
+        );
+
+        // Get name of the dependency target
+        let remote_name = self
+            .get_object(depends_on_uuid)
+            .and_then(|t| t.get_str("name"))
+            .unwrap_or("Unknown")
+            .to_string();
+        proxy_props.insert("remoteInfo".to_string(), PlistValue::String(remote_name));
+
+        let proxy_uuid = self.create_object(proxy_props);
+
+        // Create PBXTargetDependency
+        let mut dep_props = IndexMap::new();
+        dep_props.insert("isa".to_string(), PlistValue::String("PBXTargetDependency".to_string()));
+        dep_props.insert("target".to_string(), PlistValue::String(depends_on_uuid.to_string()));
+        dep_props.insert("targetProxy".to_string(), PlistValue::String(proxy_uuid));
+
+        let dep_uuid = self.create_object(dep_props);
+
+        // Add to target's dependencies
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            if let Some(PlistValue::Array(ref mut deps)) = target.props.get_mut("dependencies") {
+                deps.push(PlistValue::String(dep_uuid.clone()));
+            }
+        }
+
+        Some(dep_uuid)
+    }
+
+    /// Create a native target with build configurations and standard build phases.
+    /// Returns the UUID of the new PBXNativeTarget.
+    ///
+    /// This creates:
+    /// - XCBuildConfiguration for Debug and Release
+    /// - XCConfigurationList referencing those configurations
+    /// - PBXSourcesBuildPhase, PBXFrameworksBuildPhase, PBXResourcesBuildPhase
+    /// - PBXNativeTarget with all of the above
+    /// - PBXFileReference for the product (e.g. MyApp.app)
+    /// - Adds the product ref to the Products group
+    /// - Adds the target to PBXProject.targets
+    pub fn create_native_target(&mut self, name: &str, product_type: &str, bundle_id: &str) -> Option<String> {
+        // Determine product extension from product type
+        let product_ext = crate::types::constants::PRODUCT_UTI_EXTENSIONS
+            .get(product_type)
+            .copied()
+            .unwrap_or("app");
+
+        let product_name = if product_ext.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", name, product_ext)
+        };
+
+        // 1. Create product PBXFileReference
+        let mut product_props = IndexMap::new();
+        product_props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
+        product_props.insert(
+            "explicitFileType".to_string(),
+            PlistValue::String(
+                crate::types::constants::FILE_TYPES_BY_EXTENSION
+                    .get(product_ext)
+                    .copied()
+                    .unwrap_or("wrapper.application")
+                    .to_string(),
+            ),
+        );
+        product_props.insert("includeInIndex".to_string(), PlistValue::Integer(0));
+        product_props.insert("path".to_string(), PlistValue::String(product_name));
+        product_props.insert(
+            "sourceTree".to_string(),
+            PlistValue::String("BUILT_PRODUCTS_DIR".to_string()),
+        );
+        let product_ref_uuid = self.create_object(product_props);
+
+        // Add product to Products group
+        if let Some(products_uuid) = self.product_ref_group_uuid() {
+            if let Some(products) = self.get_object_mut(&products_uuid) {
+                if let Some(PlistValue::Array(ref mut children)) = products.props.get_mut("children") {
+                    children.push(PlistValue::String(product_ref_uuid.clone()));
+                }
+            }
+        }
+
+        // 2. Create Debug build configuration
+        let mut debug_settings = IndexMap::new();
+        debug_settings.insert(
+            "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
+            PlistValue::String(bundle_id.to_string()),
+        );
+        debug_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(format!("\"{}\"", name)));
+        debug_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
+
+        let mut debug_props = IndexMap::new();
+        debug_props.insert(
+            "isa".to_string(),
+            PlistValue::String("XCBuildConfiguration".to_string()),
+        );
+        debug_props.insert("buildSettings".to_string(), PlistValue::Object(debug_settings));
+        debug_props.insert("name".to_string(), PlistValue::String("Debug".to_string()));
+        let debug_uuid = self.create_object(debug_props);
+
+        // 3. Create Release build configuration
+        let mut release_settings = IndexMap::new();
+        release_settings.insert(
+            "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
+            PlistValue::String(bundle_id.to_string()),
+        );
+        release_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(format!("\"{}\"", name)));
+        release_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
+
+        let mut release_props = IndexMap::new();
+        release_props.insert(
+            "isa".to_string(),
+            PlistValue::String("XCBuildConfiguration".to_string()),
+        );
+        release_props.insert("buildSettings".to_string(), PlistValue::Object(release_settings));
+        release_props.insert("name".to_string(), PlistValue::String("Release".to_string()));
+        let release_uuid = self.create_object(release_props);
+
+        // 4. Create XCConfigurationList
+        let mut config_list_props = IndexMap::new();
+        config_list_props.insert("isa".to_string(), PlistValue::String("XCConfigurationList".to_string()));
+        config_list_props.insert(
+            "buildConfigurations".to_string(),
+            PlistValue::Array(vec![PlistValue::String(debug_uuid), PlistValue::String(release_uuid)]),
+        );
+        config_list_props.insert("defaultConfigurationIsVisible".to_string(), PlistValue::Integer(0));
+        config_list_props.insert(
+            "defaultConfigurationName".to_string(),
+            PlistValue::String("Release".to_string()),
+        );
+        let config_list_uuid = self.create_object(config_list_props);
+
+        // 5. Create standard build phases
+        let sources_uuid = {
+            let mut p = IndexMap::new();
+            p.insert(
+                "isa".to_string(),
+                PlistValue::String("PBXSourcesBuildPhase".to_string()),
+            );
+            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
+            p.insert("files".to_string(), PlistValue::Array(vec![]));
+            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            self.create_object(p)
+        };
+        let frameworks_uuid = {
+            let mut p = IndexMap::new();
+            p.insert(
+                "isa".to_string(),
+                PlistValue::String("PBXFrameworksBuildPhase".to_string()),
+            );
+            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
+            p.insert("files".to_string(), PlistValue::Array(vec![]));
+            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            self.create_object(p)
+        };
+        let resources_uuid = {
+            let mut p = IndexMap::new();
+            p.insert(
+                "isa".to_string(),
+                PlistValue::String("PBXResourcesBuildPhase".to_string()),
+            );
+            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
+            p.insert("files".to_string(), PlistValue::Array(vec![]));
+            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            self.create_object(p)
+        };
+
+        // 6. Create PBXNativeTarget
+        let mut target_props = IndexMap::new();
+        target_props.insert("isa".to_string(), PlistValue::String("PBXNativeTarget".to_string()));
+        target_props.insert(
+            "buildConfigurationList".to_string(),
+            PlistValue::String(config_list_uuid),
+        );
+        target_props.insert(
+            "buildPhases".to_string(),
+            PlistValue::Array(vec![
+                PlistValue::String(sources_uuid),
+                PlistValue::String(frameworks_uuid),
+                PlistValue::String(resources_uuid),
+            ]),
+        );
+        target_props.insert("buildRules".to_string(), PlistValue::Array(vec![]));
+        target_props.insert("dependencies".to_string(), PlistValue::Array(vec![]));
+        target_props.insert("name".to_string(), PlistValue::String(name.to_string()));
+        target_props.insert("productName".to_string(), PlistValue::String(name.to_string()));
+        target_props.insert("productReference".to_string(), PlistValue::String(product_ref_uuid));
+        target_props.insert("productType".to_string(), PlistValue::String(product_type.to_string()));
+        let target_uuid = self.create_object(target_props);
+
+        // 7. Add target to PBXProject.targets
+        let root_uuid = self.root_object_uuid.clone();
+        if let Some(root) = self.get_object_mut(&root_uuid) {
+            if let Some(PlistValue::Array(ref mut targets)) = root.props.get_mut("targets") {
+                targets.push(PlistValue::String(target_uuid.clone()));
+            }
+        }
+
+        Some(target_uuid)
     }
 
     /// Remove a build setting from all configurations for a target.
@@ -516,11 +845,7 @@ impl XcodeProject {
         };
         let config_uuids: Vec<String> = config_list
             .get_array("buildConfigurations")
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default();
 
         for config_uuid in config_uuids {
@@ -641,10 +966,7 @@ mod tests {
         let project = XcodeProject::from_plist(&content).unwrap();
 
         let orphans = project.find_orphaned_references();
-        assert!(
-            !orphans.is_empty(),
-            "Malformed project should have orphaned references"
-        );
+        assert!(!orphans.is_empty(), "Malformed project should have orphaned references");
 
         // The known orphan: 3E1C2299F05049539341855D in PBXResourcesBuildPhase.files
         let known_orphan = orphans.iter().find(|o| o.orphan_uuid == "3E1C2299F05049539341855D");
