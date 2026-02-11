@@ -115,11 +115,7 @@ if (wasm) {
     const project = new wasm.XcodeProject(text);
 
     const host = project.findMainAppTarget("ios");
-    const ext = project.createNativeTarget(
-      "Widget",
-      "com.apple.product-type.app-extension",
-      "com.example.widget",
-    );
+    const ext = project.createNativeTarget("Widget", "com.apple.product-type.app-extension", "com.example.widget");
     t.truthy(ext);
 
     project.addDependency(host, ext);
