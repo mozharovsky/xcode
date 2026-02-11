@@ -1,5 +1,6 @@
 import test from "ava";
-import { readFileSync } from "fs";
+import { readFileSync, mkdtempSync, cpSync } from "fs";
+import { tmpdir } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -154,6 +155,39 @@ if (native) {
     t.is(orphans.length, 0);
   });
 
+  test("setBuildSetting modifies and persists code signing settings", (t) => {
+    // Work on a copy so we don't mutate the fixture
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    // Open, modify, save
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+    t.truthy(target);
+
+    project.setBuildSetting(target, "CODE_SIGN_STYLE", "Manual");
+    project.setBuildSetting(target, "CODE_SIGN_IDENTITY", "Apple Distribution");
+    project.setBuildSetting(target, "DEVELOPMENT_TEAM", "ABCDE12345");
+    project.setBuildSetting(target, "PROVISIONING_PROFILE_SPECIFIER", "MyApp_Profile");
+    project.save();
+
+    // Re-open and verify settings persisted
+    const reopened = native.XcodeProject.open(pbxpath);
+    const target2 = reopened.findMainAppTarget("ios");
+
+    t.is(reopened.getBuildSetting(target2, "CODE_SIGN_STYLE"), "Manual");
+    t.is(reopened.getBuildSetting(target2, "CODE_SIGN_IDENTITY"), "Apple Distribution");
+    t.is(reopened.getBuildSetting(target2, "DEVELOPMENT_TEAM"), "ABCDE12345");
+    t.is(reopened.getBuildSetting(target2, "PROVISIONING_PROFILE_SPECIFIER"), "MyApp_Profile");
+
+    // Verify the file is valid pbxproj
+    const content = readFileSync(pbxpath, "utf8");
+    t.true(content.startsWith("// !$*UTF8*$!"));
+    t.true(content.includes("CODE_SIGN_STYLE = Manual"));
+    t.true(content.includes("PROVISIONING_PROFILE_SPECIFIER = MyApp_Profile"));
+  });
+
   test("malformed project detects orphaned references", (t) => {
     const project = native.XcodeProject.open(
       join(FIXTURES_DIR, "malformed.pbxproj")
@@ -177,6 +211,145 @@ if (native) {
     const output = project.toBuild();
     t.true(output.includes("PBXResourcesBuildPhase"));
     t.true(output.includes("baconwidget"));
+  });
+  test("addFile creates a file reference in a group", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const mainGroup = project.mainGroupUuid;
+    t.truthy(mainGroup);
+
+    const fileUuid = project.addFile(mainGroup, "Sources/NewFile.swift");
+    t.truthy(fileUuid);
+    t.is(fileUuid.length, 24);
+
+    // File should appear in group children
+    const children = project.getGroupChildren(mainGroup);
+    t.true(children.includes(fileUuid));
+
+    // Should serialize correctly
+    const output = project.toBuild();
+    t.true(output.includes("NewFile.swift"));
+    t.true(output.includes("sourcecode.swift"));
+  });
+
+  test("addGroup creates a nested group", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const mainGroup = project.mainGroupUuid;
+
+    const groupUuid = project.addGroup(mainGroup, "NewFeature");
+    t.truthy(groupUuid);
+
+    const children = project.getGroupChildren(mainGroup);
+    t.true(children.includes(groupUuid));
+
+    const output = project.toBuild();
+    t.true(output.includes("NewFeature"));
+  });
+
+  test("addFramework adds a framework to a target", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+
+    const buildFileUuid = project.addFramework(target, "SwiftUI");
+    t.truthy(buildFileUuid);
+
+    const output = project.toBuild();
+    t.true(output.includes("SwiftUI.framework"));
+    t.true(output.includes("wrapper.framework"));
+  });
+
+  test("addDependency links two targets", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project-multitarget.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const targets = project.getNativeTargets();
+    t.true(targets.length >= 2);
+
+    const depUuid = project.addDependency(targets[0], targets[1]);
+    t.truthy(depUuid);
+
+    const output = project.toBuild();
+    t.true(output.includes("PBXTargetDependency"));
+    t.true(output.includes("PBXContainerItemProxy"));
+  });
+
+  test("createNativeTarget creates a complete target", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const beforeTargets = project.getNativeTargets();
+
+    const targetUuid = project.createNativeTarget(
+      "MyWidget",
+      "com.apple.product-type.app-extension",
+      "com.example.mywidget"
+    );
+    t.truthy(targetUuid);
+
+    // Should have one more target
+    const afterTargets = project.getNativeTargets();
+    t.is(afterTargets.length, beforeTargets.length + 1);
+    t.true(afterTargets.includes(targetUuid));
+
+    // Can set build settings on the new target
+    project.setBuildSetting(targetUuid, "IPHONEOS_DEPLOYMENT_TARGET", "16.0");
+
+    // Save and reopen
+    project.save();
+    const reopened = native.XcodeProject.open(pbxpath);
+    const output = reopened.toBuild();
+
+    t.true(output.includes("MyWidget"));
+    t.true(output.includes("com.example.mywidget"));
+    t.true(output.includes("com.apple.product-type.app-extension"));
+    t.true(output.includes("PBXSourcesBuildPhase"));
+    t.true(output.includes("PBXFrameworksBuildPhase"));
+    t.true(output.includes("PBXResourcesBuildPhase"));
+
+    // Verify build setting persisted
+    t.is(reopened.getBuildSetting(targetUuid, "IPHONEOS_DEPLOYMENT_TARGET"), "16.0");
+  });
+
+  test("full workflow: add file + add to sources phase + save + reopen", (t) => {
+    const tmp = mkdtempSync(join(tmpdir(), "xcode-test-"));
+    const pbxpath = join(tmp, "project.pbxproj");
+    cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+    const project = native.XcodeProject.open(pbxpath);
+    const target = project.findMainAppTarget("ios");
+    const mainGroup = project.mainGroupUuid;
+
+    // Add a Swift file to the project
+    const fileUuid = project.addFile(mainGroup, "Features/Login.swift");
+
+    // Add it to the Sources build phase
+    const sourcesPhase = project.ensureBuildPhase(target, "PBXSourcesBuildPhase");
+    const buildFileUuid = project.addBuildFile(sourcesPhase, fileUuid);
+    t.truthy(buildFileUuid);
+
+    // Save and reopen
+    project.save();
+    const reopened = native.XcodeProject.open(pbxpath);
+    const output = reopened.toBuild();
+
+    t.true(output.includes("Login.swift"));
+    t.true(output.includes("Login.swift in Sources"));
+    t.true(output.includes("sourcecode.swift"));
   });
 } else {
   test("skipped — native module not available", (t) => {
