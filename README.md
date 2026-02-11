@@ -77,6 +77,7 @@ const project = XcodeProject.open("ios/MyApp.xcodeproj/project.pbxproj");
 project.archiveVersion; // 1
 project.objectVersion;  // 46
 project.filePath;       // the path it was opened from
+project.mainGroupUuid;  // root group UUID
 
 // Targets
 const targets = project.getNativeTargets(); // UUID[]
@@ -86,6 +87,32 @@ const mainApp = project.findMainAppTarget("ios"); // UUID | null
 project.getBuildSetting(targetUuid, "PRODUCT_BUNDLE_IDENTIFIER");
 project.setBuildSetting(targetUuid, "SWIFT_VERSION", "5.0");
 project.removeBuildSetting(targetUuid, "CODE_SIGN_IDENTITY");
+
+// Files & groups
+const fileUuid = project.addFile(project.mainGroupUuid, "Sources/App.swift");
+const groupUuid = project.addGroup(project.mainGroupUuid, "Features");
+const children = project.getGroupChildren(groupUuid);
+
+// Build phases
+const phase = project.ensureBuildPhase(targetUuid, "PBXSourcesBuildPhase");
+project.addBuildFile(phase, fileUuid);
+
+// Frameworks
+project.addFramework(targetUuid, "SwiftUI");
+
+// Create targets
+const widgetTarget = project.createNativeTarget(
+  "MyWidget",
+  "com.apple.product-type.app-extension",
+  "com.example.mywidget"
+);
+
+// Target dependencies
+project.addDependency(mainApp, widgetTarget);
+
+// Validation
+const orphans = project.findOrphanedReferences();
+// [{ referrerUuid, referrerIsa, property, orphanUuid }]
 
 // Serialize
 const pbxproj = project.toBuild(); // string
@@ -97,6 +124,8 @@ project.save();
 // Deterministic UUID generation
 const uuid = project.getUniqueId("my-seed-string"); // 24-char hex
 ```
+
+All `XcodeProject` methods operate in Rust — only primitive strings cross the JS/Rust boundary. This is the fastest path for project manipulation.
 
 ## Performance
 
