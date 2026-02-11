@@ -1,5 +1,6 @@
 /// NeXTSTEP character mapping table (0x80-0xFF → Unicode code points).
 /// Based on http://ftp.unicode.org/Public/MAPPINGS/VENDORS/NEXT/NEXTSTEP.TXT
+#[rustfmt::skip]
 const NEXT_STEP_MAPPINGS: [(u8, u32); 128] = [
     (0x80, 0x00a0), (0x81, 0x00c0), (0x82, 0x00c1), (0x83, 0x00c2),
     (0x84, 0x00c3), (0x85, 0x00c4), (0x86, 0x00c5), (0x87, 0x00c7),
@@ -112,9 +113,7 @@ pub fn unescape_string(input: &str) -> String {
                 // Unicode escape: \Uxxxx
                 b'U' if i + 5 < len => {
                     let hex = &input[i + 2..i + 6];
-                    if hex.len() == 4
-                        && hex.chars().all(|c| c.is_ascii_hexdigit())
-                    {
+                    if hex.len() == 4 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
                         let code = u32::from_str_radix(hex, 16).unwrap();
                         if let Some(ch) = char::from_u32(code) {
                             result.push(ch);
@@ -134,11 +133,7 @@ pub fn unescape_string(input: &str) -> String {
                         j += 1;
                     }
                     let code = u32::from_str_radix(&octal, 8).unwrap_or(0);
-                    let mapped = if code >= 0x80 {
-                        nextstep_to_unicode(code)
-                    } else {
-                        code
-                    };
+                    let mapped = if code >= 0x80 { nextstep_to_unicode(code) } else { code };
                     if let Some(ch) = char::from_u32(mapped) {
                         result.push(ch);
                     }

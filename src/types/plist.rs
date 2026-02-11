@@ -196,10 +196,8 @@ impl<'de> Deserialize<'de> for PlistValue {
                     if let Some(PlistValue::String(t)) = index_map.get("type") {
                         if t == "Buffer" {
                             if let Some(PlistValue::Array(data)) = index_map.get("data") {
-                                let bytes: Vec<u8> = data
-                                    .iter()
-                                    .filter_map(|v| v.as_integer().map(|n| n as u8))
-                                    .collect();
+                                let bytes: Vec<u8> =
+                                    data.iter().filter_map(|v| v.as_integer().map(|n| n as u8)).collect();
                                 return Ok(PlistValue::Data(bytes));
                             }
                         }
@@ -237,10 +235,7 @@ mod tests {
         map.insert("key".to_string(), PlistValue::String("value".to_string()));
         let val = PlistValue::Object(map);
         assert!(val.as_object().is_some());
-        assert_eq!(
-            val.get("key").and_then(|v| v.as_str()),
-            Some("value")
-        );
+        assert_eq!(val.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
     #[test]

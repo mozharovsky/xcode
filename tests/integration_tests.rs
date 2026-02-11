@@ -56,21 +56,11 @@ mod fixture_tests {
     fn test_all_fixtures_parse() {
         for fixture in ALL_FIXTURES {
             let path = Path::new(FIXTURES_DIR).join(fixture);
-            let content = fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("Failed to read {}: {}", fixture, e));
+            let content = fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {}: {}", fixture, e));
             let result = parse(&content);
-            assert!(
-                result.is_ok(),
-                "Failed to parse {}: {:?}",
-                fixture,
-                result.err()
-            );
+            assert!(result.is_ok(), "Failed to parse {}: {:?}", fixture, result.err());
             let plist = result.unwrap();
-            assert!(
-                plist.as_object().is_some(),
-                "{} should parse to an object",
-                fixture
-            );
+            assert!(plist.as_object().is_some(), "{} should parse to an object", fixture);
         }
     }
 
@@ -81,10 +71,8 @@ mod fixture_tests {
 
         for fixture in IN_OUT_FIXTURES {
             let path = Path::new(FIXTURES_DIR).join(fixture);
-            let original = fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("Failed to read {}: {}", fixture, e));
-            let parsed = parse(&original)
-                .unwrap_or_else(|e| panic!("Failed to parse {}: {}", fixture, e));
+            let original = fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {}: {}", fixture, e));
+            let parsed = parse(&original).unwrap_or_else(|e| panic!("Failed to parse {}: {}", fixture, e));
             let output = build(&parsed);
 
             if output == original {
@@ -168,10 +156,7 @@ mod unicode_tests {
         assert_eq!(obj.get("newline").unwrap().as_str(), Some("line1\nline2"));
         assert_eq!(obj.get("tab").unwrap().as_str(), Some("col1\tcol2"));
         assert_eq!(obj.get("quote").unwrap().as_str(), Some("say \"hello\""));
-        assert_eq!(
-            obj.get("backslash").unwrap().as_str(),
-            Some("path\\to\\file")
-        );
+        assert_eq!(obj.get("backslash").unwrap().as_str(), Some("path\\to\\file"));
     }
 
     #[test]
@@ -200,14 +185,8 @@ mod unicode_tests {
         }"#;
         let result = parse(input).unwrap();
         let obj = result.as_object().unwrap();
-        assert_eq!(
-            obj.get("invalidUnicode").unwrap().as_str(),
-            Some("\\UZZZZ")
-        );
-        assert_eq!(
-            obj.get("partialUnicode").unwrap().as_str(),
-            Some("\\U123")
-        );
+        assert_eq!(obj.get("invalidUnicode").unwrap().as_str(), Some("\\UZZZZ"));
+        assert_eq!(obj.get("partialUnicode").unwrap().as_str(), Some("\\U123"));
     }
 
     #[test]
@@ -224,10 +203,7 @@ mod unicode_tests {
         let obj = result.as_object().unwrap();
         assert_eq!(obj.get("nonBreakSpace").unwrap().as_str(), Some("\u{00a0}"));
         assert_eq!(obj.get("copyright").unwrap().as_str(), Some("\u{00a9}"));
-        assert_eq!(
-            obj.get("registeredSign").unwrap().as_str(),
-            Some("\u{00ae}")
-        );
+        assert_eq!(obj.get("registeredSign").unwrap().as_str(), Some("\u{00ae}"));
         assert_eq!(obj.get("bullet").unwrap().as_str(), Some("\u{2022}"));
         assert_eq!(obj.get("enDash").unwrap().as_str(), Some("\u{2013}"));
         assert_eq!(obj.get("emDash").unwrap().as_str(), Some("\u{2014}"));
@@ -266,10 +242,7 @@ mod unicode_tests {
         let obj = result.as_object().unwrap();
         assert_eq!(obj.get("fiLigature").unwrap().as_str(), Some("\u{fb01}"));
         assert_eq!(obj.get("flLigature").unwrap().as_str(), Some("\u{fb02}"));
-        assert_eq!(
-            obj.get("fractionSlash").unwrap().as_str(),
-            Some("\u{2044}")
-        );
+        assert_eq!(obj.get("fractionSlash").unwrap().as_str(), Some("\u{2044}"));
         assert_eq!(obj.get("fHook").unwrap().as_str(), Some("\u{0192}"));
         assert_eq!(obj.get("ellipsis").unwrap().as_str(), Some("\u{2026}"));
     }
@@ -364,14 +337,8 @@ mod unicode_tests {
         let obj = result.as_object().unwrap();
         assert_eq!(obj.get("doubleQuoted").unwrap().as_str(), Some("double"));
         assert_eq!(obj.get("singleQuoted").unwrap().as_str(), Some("single"));
-        assert_eq!(
-            obj.get("doubleInSingle").unwrap().as_str(),
-            Some("say \"hello\"")
-        );
-        assert_eq!(
-            obj.get("singleInDouble").unwrap().as_str(),
-            Some("it's working")
-        );
+        assert_eq!(obj.get("doubleInSingle").unwrap().as_str(), Some("say \"hello\""));
+        assert_eq!(obj.get("singleInDouble").unwrap().as_str(), Some("it's working"));
     }
 
     #[test]
@@ -389,18 +356,9 @@ mod unicode_tests {
         assert_eq!(obj.get("unquoted").unwrap().as_str(), Some("value"));
         assert_eq!(obj.get("withNumbers").unwrap().as_str(), Some("value123"));
         assert_eq!(obj.get("withPath").unwrap().as_str(), Some("path/to/file"));
-        assert_eq!(
-            obj.get("withDots").unwrap().as_str(),
-            Some("com.example.app")
-        );
-        assert_eq!(
-            obj.get("withHyphens").unwrap().as_str(),
-            Some("with-hyphens")
-        );
-        assert_eq!(
-            obj.get("withUnderscores").unwrap().as_str(),
-            Some("with_underscores")
-        );
+        assert_eq!(obj.get("withDots").unwrap().as_str(), Some("com.example.app"));
+        assert_eq!(obj.get("withHyphens").unwrap().as_str(), Some("with-hyphens"));
+        assert_eq!(obj.get("withUnderscores").unwrap().as_str(), Some("with_underscores"));
     }
 
     #[test]
@@ -432,10 +390,7 @@ mod unicode_tests {
             PlistValue::Float(f) => assert!((*f - 3.14).abs() < 0.001),
             other => panic!("Expected Float, got {:?}", other),
         }
-        assert_eq!(
-            obj.get("scientificNotation").unwrap().as_str(),
-            Some("1e5")
-        );
+        assert_eq!(obj.get("scientificNotation").unwrap().as_str(), Some("1e5"));
     }
 
     #[test]

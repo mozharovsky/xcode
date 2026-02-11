@@ -49,10 +49,7 @@ impl Parser {
                 "Expected {:?}, got {:?} at token position {}",
                 expected, tok, pos
             )),
-            None => Err(format!(
-                "Expected {:?}, got EOF at token position {}",
-                expected, pos
-            )),
+            None => Err(format!("Expected {:?}, got EOF at token position {}", expected, pos)),
         }
     }
 
@@ -170,8 +167,7 @@ impl Parser {
 /// - Everything else → String
 fn parse_type(literal: &str) -> PlistValue {
     // Preserve octal literals with leading zeros (e.g., "0755")
-    if literal.len() > 1 && literal.starts_with('0') && literal.chars().all(|c| c.is_ascii_digit())
-    {
+    if literal.len() > 1 && literal.starts_with('0') && literal.chars().all(|c| c.is_ascii_digit()) {
         return PlistValue::String(literal.to_string());
     }
 
@@ -188,7 +184,10 @@ fn parse_type(literal: &str) -> PlistValue {
 
     // Handle decimal numbers
     let is_numeric = {
-        let s = literal.strip_prefix('+').or_else(|| literal.strip_prefix('-')).unwrap_or(literal);
+        let s = literal
+            .strip_prefix('+')
+            .or_else(|| literal.strip_prefix('-'))
+            .unwrap_or(literal);
         if s.is_empty() {
             false
         } else if s.contains('.') {
@@ -233,10 +232,7 @@ mod tests {
         let input = r#"{ key = value; }"#;
         let result = parse(input).unwrap();
         let obj = result.as_object().unwrap();
-        assert_eq!(
-            obj.get("key").and_then(|v| v.as_str()),
-            Some("value")
-        );
+        assert_eq!(obj.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
     #[test]
@@ -263,10 +259,7 @@ mod tests {
         let input = r#"{ "quoted key" = "quoted value"; }"#;
         let result = parse(input).unwrap();
         let obj = result.as_object().unwrap();
-        assert_eq!(
-            obj.get("quoted key").and_then(|v| v.as_str()),
-            Some("quoted value")
-        );
+        assert_eq!(obj.get("quoted key").and_then(|v| v.as_str()), Some("quoted value"));
     }
 
     #[test]
@@ -332,10 +325,7 @@ mod tests {
         let result = parse(input).unwrap();
         let obj = result.as_object().unwrap();
         // This is alphanumeric, not all digits, so stays as string
-        assert_eq!(
-            obj.get("id").unwrap().as_str(),
-            Some("13B07F961A680F5B00A75B9A")
-        );
+        assert_eq!(obj.get("id").unwrap().as_str(), Some("13B07F961A680F5B00A75B9A"));
     }
 
     #[test]

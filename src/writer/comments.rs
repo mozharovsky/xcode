@@ -165,9 +165,7 @@ fn get_default_build_phase_name(isa: &str) -> Option<String> {
 fn get_xc_configuration_list_comment(id: &str, objects: &IndexMap<String, PlistValue>) -> String {
     for (inner_id, obj) in objects {
         if let Some(obj_map) = obj.as_object() {
-            let config_list = obj_map
-                .get("buildConfigurationList")
-                .and_then(|v| v.as_str());
+            let config_list = obj_map.get("buildConfigurationList").and_then(|v| v.as_str());
             if config_list == Some(id) {
                 let isa = obj_map.get("isa").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -183,18 +181,13 @@ fn get_xc_configuration_list_comment(id: &str, objects: &IndexMap<String, PlistV
 
                 if let Some(targets) = obj_map.get("targets").and_then(|v| v.as_array()) {
                     if let Some(first_target_id) = targets.first().and_then(|v| v.as_str()) {
-                        if let Some(target_obj) =
-                            objects.get(first_target_id).and_then(|v| v.as_object())
-                        {
+                        if let Some(target_obj) = objects.get(first_target_id).and_then(|v| v.as_object()) {
                             let target_name = target_obj
                                 .get("productName")
                                 .or_else(|| target_obj.get("name"))
                                 .and_then(|v| v.as_str());
                             if let Some(name) = target_name {
-                                return format!(
-                                    "Build configuration list for {} \"{}\"",
-                                    isa, name
-                                );
+                                return format!("Build configuration list for {} \"{}\"", isa, name);
                             }
                         }
                     }
@@ -279,10 +272,7 @@ mod tests {
             get_repo_name_from_url("https://github.com/expo/spm-package"),
             "spm-package"
         );
-        assert_eq!(
-            get_repo_name_from_url("https://github.com/user/repo.git"),
-            "repo"
-        );
+        assert_eq!(get_repo_name_from_url("https://github.com/user/repo.git"), "repo");
         assert_eq!(
             get_repo_name_from_url("https://example.com/custom"),
             "https://example.com/custom"

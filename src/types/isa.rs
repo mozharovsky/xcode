@@ -56,9 +56,7 @@ impl fmt::Display for Isa {
             Isa::PBXVariantGroup => "PBXVariantGroup",
             Isa::XCVersionGroup => "XCVersionGroup",
             Isa::PBXFileSystemSynchronizedRootGroup => "PBXFileSystemSynchronizedRootGroup",
-            Isa::PBXFileSystemSynchronizedBuildFileExceptionSet => {
-                "PBXFileSystemSynchronizedBuildFileExceptionSet"
-            }
+            Isa::PBXFileSystemSynchronizedBuildFileExceptionSet => "PBXFileSystemSynchronizedBuildFileExceptionSet",
             Isa::PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet => {
                 "PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet"
             }
@@ -98,12 +96,8 @@ impl FromStr for Isa {
             "PBXGroup" => Ok(Isa::PBXGroup),
             "PBXVariantGroup" => Ok(Isa::PBXVariantGroup),
             "XCVersionGroup" => Ok(Isa::XCVersionGroup),
-            "PBXFileSystemSynchronizedRootGroup" => {
-                Ok(Isa::PBXFileSystemSynchronizedRootGroup)
-            }
-            "PBXFileSystemSynchronizedBuildFileExceptionSet" => {
-                Ok(Isa::PBXFileSystemSynchronizedBuildFileExceptionSet)
-            }
+            "PBXFileSystemSynchronizedRootGroup" => Ok(Isa::PBXFileSystemSynchronizedRootGroup),
+            "PBXFileSystemSynchronizedBuildFileExceptionSet" => Ok(Isa::PBXFileSystemSynchronizedBuildFileExceptionSet),
             "PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet" => {
                 Ok(Isa::PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet)
             }
@@ -152,10 +146,7 @@ impl Isa {
     pub fn is_group(&self) -> bool {
         matches!(
             self,
-            Isa::PBXGroup
-                | Isa::PBXVariantGroup
-                | Isa::XCVersionGroup
-                | Isa::PBXFileSystemSynchronizedRootGroup
+            Isa::PBXGroup | Isa::PBXVariantGroup | Isa::XCVersionGroup | Isa::PBXFileSystemSynchronizedRootGroup
         )
     }
 
@@ -200,10 +191,7 @@ mod tests {
 
     #[test]
     fn test_build_phase_name() {
-        assert_eq!(
-            Isa::PBXSourcesBuildPhase.default_build_phase_name(),
-            Some("Sources")
-        );
+        assert_eq!(Isa::PBXSourcesBuildPhase.default_build_phase_name(), Some("Sources"));
         assert_eq!(Isa::PBXProject.default_build_phase_name(), None);
     }
 }

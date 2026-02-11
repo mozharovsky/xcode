@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use indexmap::IndexMap;
 
-use crate::types::plist::PlistValue;
 use crate::types::isa::Isa;
+use crate::types::plist::PlistValue;
 
 /// A trait providing shared behavior for all PBX object types.
 pub trait PbxObjectExt {
@@ -86,8 +86,7 @@ impl PbxObject {
 
     /// Set an integer property.
     pub fn set_int(&mut self, key: &str, value: i64) {
-        self.props
-            .insert(key.to_string(), PlistValue::Integer(value));
+        self.props.insert(key.to_string(), PlistValue::Integer(value));
     }
 
     /// Set a property.
@@ -232,9 +231,7 @@ mod tests {
         props.insert("name".to_string(), PlistValue::String("Sources".to_string()));
         props.insert(
             "children".to_string(),
-            PlistValue::Array(vec![PlistValue::String(
-                "13B07F961A680F5B00A75B9A".to_string(),
-            )]),
+            PlistValue::Array(vec![PlistValue::String("13B07F961A680F5B00A75B9A".to_string())]),
         );
 
         let obj = PbxObject::from_plist("AABB00112233445566778899".to_string(), &props);

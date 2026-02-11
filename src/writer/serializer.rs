@@ -223,10 +223,7 @@ impl Writer {
 
         for (id, obj) in objects {
             if let Some(obj_map) = obj.as_object() {
-                let isa = obj_map
-                    .get("isa")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("Unknown");
+                let isa = obj_map.get("isa").and_then(|v| v.as_str()).unwrap_or("Unknown");
                 by_isa.entry(isa).or_default().push((id.as_str(), obj_map));
             }
         }
@@ -412,9 +409,8 @@ fn is_safe_unquoted(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
-    s.bytes().all(|b| {
-        b.is_ascii_alphanumeric() || b == b'_' || b == b'$' || b == b'/' || b == b':' || b == b'.'
-    })
+    s.bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$' || b == b'/' || b == b':' || b == b'.')
 }
 
 /// Check if a string contains characters that need escaping.
@@ -431,12 +427,7 @@ fn estimate_size(value: &PlistValue) -> usize {
         PlistValue::Float(_) => 16,
         PlistValue::Data(d) => d.len() * 2 + 4,
         PlistValue::Array(items) => items.iter().map(estimate_size).sum::<usize>() + 8,
-        PlistValue::Object(map) => {
-            map.iter()
-                .map(|(k, v)| k.len() + estimate_size(v) + 6)
-                .sum::<usize>()
-                + 8
-        }
+        PlistValue::Object(map) => map.iter().map(|(k, v)| k.len() + estimate_size(v) + 6).sum::<usize>() + 8,
     }
 }
 
@@ -451,18 +442,9 @@ mod tests {
 
     fn make_simple_project() -> PlistValue {
         let mut root = IndexMap::new();
-        root.insert(
-            "archiveVersion".to_string(),
-            PlistValue::Integer(1),
-        );
-        root.insert(
-            "objectVersion".to_string(),
-            PlistValue::Integer(46),
-        );
-        root.insert(
-            "classes".to_string(),
-            PlistValue::Object(IndexMap::new()),
-        );
+        root.insert("archiveVersion".to_string(), PlistValue::Integer(1));
+        root.insert("objectVersion".to_string(), PlistValue::Integer(46));
+        root.insert("classes".to_string(), PlistValue::Object(IndexMap::new()));
         PlistValue::Object(root)
     }
 

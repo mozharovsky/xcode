@@ -93,42 +93,30 @@ fn apply_transform(value: &str, modifier: &str) -> String {
     match modifier {
         "lower" => value.to_lowercase(),
         "upper" => value.to_uppercase(),
-        "suffix" => {
-            Path::new(value)
-                .extension()
-                .map(|ext| format!(".{}", ext.to_string_lossy()))
-                .unwrap_or_default()
-        }
-        "file" => {
-            Path::new(value)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default()
-        }
-        "dir" => {
-            Path::new(value)
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_default()
-        }
-        "base" => {
-            Path::new(value)
-                .file_stem()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default()
-        }
-        "rfc1034identifier" => {
-            value
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-                .collect()
-        }
-        "c99extidentifier" => {
-            value
-                .chars()
-                .map(|c| if c == '-' || c == ' ' { '_' } else { c })
-                .collect()
-        }
+        "suffix" => Path::new(value)
+            .extension()
+            .map(|ext| format!(".{}", ext.to_string_lossy()))
+            .unwrap_or_default(),
+        "file" => Path::new(value)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        "dir" => Path::new(value)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        "base" => Path::new(value)
+            .file_stem()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        "rfc1034identifier" => value
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect(),
+        "c99extidentifier" => value
+            .chars()
+            .map(|c| if c == '-' || c == ' ' { '_' } else { c })
+            .collect(),
         "standardizepath" => {
             if value.is_empty() {
                 String::new()
@@ -165,9 +153,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("PRODUCT_NAME".to_string(), "MyApp".to_string());
 
-        let result = resolve_xcode_build_setting("$(PRODUCT_NAME)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(PRODUCT_NAME)", &|key| vars.get(key).cloned());
         assert_eq!(result, "MyApp");
     }
 
@@ -176,9 +162,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("PRODUCT_NAME".to_string(), "MyApp".to_string());
 
-        let result = resolve_xcode_build_setting("$(PRODUCT_NAME:lower)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(PRODUCT_NAME:lower)", &|key| vars.get(key).cloned());
         assert_eq!(result, "myapp");
     }
 
@@ -187,9 +171,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("PRODUCT_NAME".to_string(), "My App!".to_string());
 
-        let result = resolve_xcode_build_setting("$(PRODUCT_NAME:rfc1034identifier)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(PRODUCT_NAME:rfc1034identifier)", &|key| vars.get(key).cloned());
         assert_eq!(result, "My-App-");
     }
 
@@ -199,9 +181,7 @@ mod tests {
         vars.insert("PRODUCT_NAME".to_string(), "$(TARGET_NAME)".to_string());
         vars.insert("TARGET_NAME".to_string(), "MyTarget".to_string());
 
-        let result = resolve_xcode_build_setting("$(PRODUCT_NAME)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(PRODUCT_NAME)", &|key| vars.get(key).cloned());
         assert_eq!(result, "MyTarget");
     }
 
@@ -216,9 +196,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("NAME".to_string(), "World".to_string());
 
-        let result = resolve_xcode_build_setting("Hello $(NAME)!", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("Hello $(NAME)!", &|key| vars.get(key).cloned());
         assert_eq!(result, "Hello World!");
     }
 
@@ -227,9 +205,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("PATH".to_string(), "/usr/local/bin/tool".to_string());
 
-        let result = resolve_xcode_build_setting("$(PATH:file)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(PATH:file)", &|key| vars.get(key).cloned());
         assert_eq!(result, "tool");
     }
 
@@ -238,9 +214,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("FILE".to_string(), "main.swift".to_string());
 
-        let result = resolve_xcode_build_setting("$(FILE:suffix)", &|key| {
-            vars.get(key).cloned()
-        });
+        let result = resolve_xcode_build_setting("$(FILE:suffix)", &|key| vars.get(key).cloned());
         assert_eq!(result, ".swift");
     }
 }
