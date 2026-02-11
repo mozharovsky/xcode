@@ -175,7 +175,7 @@ xcode.setBuildSetting(target, "SWIFT_VERSION", "6.0");
 const pbxproj = xcode.toBuild();
 ```
 
-#### Node.js with filesystem access
+### WASM on Node.js
 
 Use the `/node` subpath to get `open()` and `save()`:
 
