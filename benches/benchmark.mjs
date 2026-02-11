@@ -82,11 +82,7 @@ console.log();
 
 console.log("PARSE");
 console.log("─".repeat(78));
-console.log(
-  "  Fixture".padEnd(38) +
-    "Rust".padStart(10) +
-    (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""),
-);
+console.log("  Fixture".padEnd(38) + "Rust".padStart(10) + (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""));
 for (const [fixture, size] of fixtures) {
   const text = readFileSync(join(FIXTURES_DIR, fixture), "utf8");
   const r = bench(() => rust.parse(text));
@@ -101,11 +97,7 @@ for (const [fixture, size] of fixtures) {
 console.log();
 console.log("BUILD (from pre-parsed object)");
 console.log("─".repeat(78));
-console.log(
-  "  Fixture".padEnd(38) +
-    "Rust".padStart(10) +
-    (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""),
-);
+console.log("  Fixture".padEnd(38) + "Rust".padStart(10) + (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""));
 for (const [fixture, size] of fixtures) {
   const text = readFileSync(join(FIXTURES_DIR, fixture), "utf8");
   const rustParsed = rust.parse(text);
@@ -122,11 +114,7 @@ for (const [fixture, size] of fixtures) {
 console.log();
 console.log("BUILD FROM JSON (buildFromJSON — avoids napi object marshalling)");
 console.log("─".repeat(78));
-console.log(
-  "  Fixture".padEnd(38) +
-    "Rust".padStart(10) +
-    (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""),
-);
+console.log("  Fixture".padEnd(38) + "Rust".padStart(10) + (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""));
 for (const [fixture, size] of fixtures) {
   const text = readFileSync(join(FIXTURES_DIR, fixture), "utf8");
   const rustParsed = rust.parse(text);
@@ -144,11 +132,7 @@ for (const [fixture, size] of fixtures) {
 console.log();
 console.log("ROUND-TRIP (parse + build)");
 console.log("─".repeat(78));
-console.log(
-  "  Fixture".padEnd(38) +
-    "Rust".padStart(10) +
-    (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""),
-);
+console.log("  Fixture".padEnd(38) + "Rust".padStart(10) + (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""));
 for (const [fixture, size] of fixtures) {
   const text = readFileSync(join(FIXTURES_DIR, fixture), "utf8");
   const r = bench(() => rust.build(rust.parse(text)));
@@ -163,11 +147,7 @@ for (const [fixture, size] of fixtures) {
 console.log();
 console.log("PARSE AND BUILD (parseAndBuild — zero JS↔Rust marshalling)");
 console.log("─".repeat(78));
-console.log(
-  "  Fixture".padEnd(38) +
-    "Rust".padStart(10) +
-    (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""),
-);
+console.log("  Fixture".padEnd(38) + "Rust".padStart(10) + (ts ? "TS".padStart(10) + "Speedup".padStart(18) : ""));
 for (const [fixture, size] of fixtures) {
   const text = readFileSync(join(FIXTURES_DIR, fixture), "utf8");
   const r = bench(() => rust.parseAndBuild(text));
@@ -188,9 +168,7 @@ console.log("─".repeat(78));
     const p = rust.XcodeProject.open(bigFile);
     p.toJSON();
   });
-  console.log(
-    `  XcodeProject.open() + toJSON():  ${fmt(r.median)} ms (median)  ${fmt(r.p95)} ms (p95)`,
-  );
+  console.log(`  XcodeProject.open() + toJSON():  ${fmt(r.median)} ms (median)  ${fmt(r.p95)} ms (p95)`);
 }
 
 console.log();
