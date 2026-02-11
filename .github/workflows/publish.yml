@@ -127,6 +127,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Build and publish WASM package
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        run: |
+          wasm-pack build --target bundler --out-dir pkg/bundler -- --no-default-features --features wasm
+          ./scripts/fix-wasm-pkg.sh
+
+      - name: Publish WASM package
+        run: cd pkg/bundler && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       # Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
