@@ -5,7 +5,8 @@
  */
 
 import test from "ava";
-import { readFileSync } from "fs";
+import { cpSync, mkdtempSync, readFileSync } from "fs";
+import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -164,6 +165,57 @@ if (wasm) {
     const fileRefs = project.findObjectsByIsa("PBXFileReference");
     t.true(fileRefs.length > 0);
   });
+  // ── Node.js wrapper (open/save) ─────────────────────────────────
+
+  let nodeWrapper;
+  try {
+    nodeWrapper = require("../pkg/node/node-wrapper");
+  } catch {
+    nodeWrapper = null;
+  }
+
+  if (nodeWrapper) {
+    test("WASM /node: open() reads from disk", (t) => {
+      const project = nodeWrapper.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
+      t.truthy(project.filePath);
+      t.true(project.getNativeTargets().length > 0);
+    });
+
+    test("WASM /node: fromString() has null filePath", (t) => {
+      const text = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+      const project = nodeWrapper.XcodeProject.fromString(text);
+      t.is(project.filePath, null);
+      t.true(project.getNativeTargets().length > 0);
+    });
+
+    test("WASM /node: open() round-trips", (t) => {
+      const original = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
+      const project = nodeWrapper.XcodeProject.open(join(FIXTURES_DIR, "project.pbxproj"));
+      t.is(project.toBuild(), original);
+    });
+
+    test("WASM /node: save() persists changes", (t) => {
+      const tmp = mkdtempSync(join(tmpdir(), "xcode-wasm-"));
+      const pbxpath = join(tmp, "project.pbxproj");
+      cpSync(join(FIXTURES_DIR, "project.pbxproj"), pbxpath);
+
+      const project = nodeWrapper.XcodeProject.open(pbxpath);
+      const target = project.findMainAppTarget("ios");
+      project.setBuildSetting(target, "WASM_SAVE_TEST", "works");
+      project.save();
+
+      const saved = readFileSync(pbxpath, "utf8");
+      t.true(saved.includes("WASM_SAVE_TEST"));
+      t.true(saved.includes("works"));
+      t.true(saved.startsWith("// !$*UTF8*$!"));
+    });
+
+    test("WASM /node: re-exports parse/build/parseAndBuild", (t) => {
+      t.is(typeof nodeWrapper.parse, "function");
+      t.is(typeof nodeWrapper.build, "function");
+      t.is(typeof nodeWrapper.parseAndBuild, "function");
+    });
+  }
 } else {
   test("skipped — WASM not built", (t) => {
     t.pass("Run 'make build-wasm' first");
