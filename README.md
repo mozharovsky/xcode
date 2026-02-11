@@ -1,6 +1,6 @@
 # @xcodekit/xcode
 
-A fast, native Xcode `.pbxproj` parser and serializer for Node.js, written in Rust.
+Super fast Xcode `.pbxproj` parser and serializer written in Rust.
 
 Drop-in replacement for the low-level API of [`@bacons/xcode`](https://github.com/EvanBacon/xcode) — same `parse()` and `build()` interface, **3-15x faster parsing**, byte-identical output. Available as a native binary (napi) or universal WASM.
 
@@ -202,7 +202,10 @@ Benchmarked on Apple M4 Pro, Node.js v24. Median of 200 iterations.
 | watch (48 KB)              | 0.8 ms | 1.1 ms | 0.4 ms  | 1.9x slower | 2.7x slower |
 | project (19 KB)            | 0.3 ms | 0.4 ms | 0.2 ms  | 1.9x slower | 2.7x slower |
 
-> **Note on build performance:** TypeScript wins `build()` on smaller files because it operates directly on native JS objects with zero serialization cost. Rust pays a fixed overhead for JSON deserialization (~0.1 ms) which dominates on small inputs. On large files (>100 KB) where actual serialization work dominates, Rust wins. In practice this doesn't matter much — the parse speedup more than compensates, as the round-trip tables below show.
+> [!NOTE]
+> TypeScript wins `build()` on smaller files because it operates directly on native JS objects with zero serialization cost. Rust pays a fixed overhead for JSON deserialization (~0.1 ms) which dominates on small inputs. On large files (>100 KB) where actual serialization work dominates, Rust wins.
+>
+> In practice this doesn't matter much — the parse speedup more than compensates, as the round-trip tables below show.
 
 ### Round-Trip (parse + build)
 
