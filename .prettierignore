@@ -3,3 +3,8 @@ Cargo.lock
 package.json
 package-lock.json
 __test__/fixtures/
+target/
+pkg/
+*.node
+index.js
+index.d.ts
