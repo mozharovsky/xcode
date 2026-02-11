@@ -2,110 +2,107 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 /// Maps file extensions to their Xcode `lastKnownFileType` UTI.
-pub static FILE_TYPES_BY_EXTENSION: LazyLock<HashMap<&'static str, &'static str>> =
-    LazyLock::new(|| {
-        let mut m = HashMap::new();
-        m.insert("a", "archive.ar");
-        m.insert("app", "wrapper.application");
-        m.insert("appex", "wrapper.app-extension");
-        m.insert("bundle", "wrapper.plug-in");
-        m.insert("c", "sourcecode.c.c");
-        m.insert("cc", "sourcecode.cpp.cpp");
-        m.insert("cpp", "sourcecode.cpp.cpp");
-        m.insert("css", "text.css");
-        m.insert("cxx", "sourcecode.cpp.cpp");
-        m.insert("d", "sourcecode.dtrace");
-        m.insert("dylib", "compiled.mach-o.dylib");
-        m.insert("entitlements", "text.plist.entitlements");
-        m.insert("framework", "wrapper.framework");
-        m.insert("gif", "image.gif");
-        m.insert("gpx", "text.xml");
-        m.insert("h", "sourcecode.c.h");
-        m.insert("hh", "sourcecode.cpp.h");
-        m.insert("hpp", "sourcecode.cpp.h");
-        m.insert("html", "text.html");
-        m.insert("hxx", "sourcecode.cpp.h");
-        m.insert("ipp", "sourcecode.cpp.h");
-        m.insert("intentdefinition", "file.intentdefinition");
-        m.insert("jpeg", "image.jpeg");
-        m.insert("jpg", "image.jpeg");
-        m.insert("js", "sourcecode.javascript");
-        m.insert("json", "text.json");
-        m.insert("m", "sourcecode.c.objc");
-        m.insert("markdown", "net.daringfireball.markdown");
-        m.insert("md", "net.daringfireball.markdown");
-        m.insert("mm", "sourcecode.cpp.objcpp");
-        m.insert("modulemap", "sourcecode.module");
-        m.insert("mp3", "audio.mp3");
-        m.insert("pch", "sourcecode.c.h");
-        m.insert("plist", "text.plist.xml");
-        m.insert("png", "image.png");
-        m.insert("s", "sourcecode.asm");
-        m.insert("sh", "text.script.sh");
-        m.insert("storyboard", "file.storyboard");
-        m.insert("strings", "text.plist.strings");
-        m.insert("stringsdict", "text.plist.stringsdict");
-        m.insert("swift", "sourcecode.swift");
-        m.insert("tbd", "sourcecode.text-based-dylib-definition");
-        m.insert("ts", "sourcecode.javascript");
-        m.insert("tsx", "sourcecode.javascript");
-        m.insert("ttf", "file");
-        m.insert("wav", "audio.wav");
-        m.insert("xcassets", "folder.assetcatalog");
-        m.insert("xcconfig", "text.xcconfig");
-        m.insert("xcdatamodel", "wrapper.xcdatamodel");
-        m.insert("xcdatamodeld", "wrapper.xcdatamodeld");
-        m.insert("xcframework", "wrapper.xcframework");
-        m.insert("xib", "file.xib");
-        m.insert("xml", "text.xml");
-        m.insert("yaml", "text.yaml");
-        m.insert("yml", "text.yaml");
-        m.insert("zip", "archive.zip");
-        m
-    });
+pub static FILE_TYPES_BY_EXTENSION: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert("a", "archive.ar");
+    m.insert("app", "wrapper.application");
+    m.insert("appex", "wrapper.app-extension");
+    m.insert("bundle", "wrapper.plug-in");
+    m.insert("c", "sourcecode.c.c");
+    m.insert("cc", "sourcecode.cpp.cpp");
+    m.insert("cpp", "sourcecode.cpp.cpp");
+    m.insert("css", "text.css");
+    m.insert("cxx", "sourcecode.cpp.cpp");
+    m.insert("d", "sourcecode.dtrace");
+    m.insert("dylib", "compiled.mach-o.dylib");
+    m.insert("entitlements", "text.plist.entitlements");
+    m.insert("framework", "wrapper.framework");
+    m.insert("gif", "image.gif");
+    m.insert("gpx", "text.xml");
+    m.insert("h", "sourcecode.c.h");
+    m.insert("hh", "sourcecode.cpp.h");
+    m.insert("hpp", "sourcecode.cpp.h");
+    m.insert("html", "text.html");
+    m.insert("hxx", "sourcecode.cpp.h");
+    m.insert("ipp", "sourcecode.cpp.h");
+    m.insert("intentdefinition", "file.intentdefinition");
+    m.insert("jpeg", "image.jpeg");
+    m.insert("jpg", "image.jpeg");
+    m.insert("js", "sourcecode.javascript");
+    m.insert("json", "text.json");
+    m.insert("m", "sourcecode.c.objc");
+    m.insert("markdown", "net.daringfireball.markdown");
+    m.insert("md", "net.daringfireball.markdown");
+    m.insert("mm", "sourcecode.cpp.objcpp");
+    m.insert("modulemap", "sourcecode.module");
+    m.insert("mp3", "audio.mp3");
+    m.insert("pch", "sourcecode.c.h");
+    m.insert("plist", "text.plist.xml");
+    m.insert("png", "image.png");
+    m.insert("s", "sourcecode.asm");
+    m.insert("sh", "text.script.sh");
+    m.insert("storyboard", "file.storyboard");
+    m.insert("strings", "text.plist.strings");
+    m.insert("stringsdict", "text.plist.stringsdict");
+    m.insert("swift", "sourcecode.swift");
+    m.insert("tbd", "sourcecode.text-based-dylib-definition");
+    m.insert("ts", "sourcecode.javascript");
+    m.insert("tsx", "sourcecode.javascript");
+    m.insert("ttf", "file");
+    m.insert("wav", "audio.wav");
+    m.insert("xcassets", "folder.assetcatalog");
+    m.insert("xcconfig", "text.xcconfig");
+    m.insert("xcdatamodel", "wrapper.xcdatamodel");
+    m.insert("xcdatamodeld", "wrapper.xcdatamodeld");
+    m.insert("xcframework", "wrapper.xcframework");
+    m.insert("xib", "file.xib");
+    m.insert("xml", "text.xml");
+    m.insert("yaml", "text.yaml");
+    m.insert("yml", "text.yaml");
+    m.insert("zip", "archive.zip");
+    m
+});
 
 /// Maps product UTIs to file extensions.
-pub static PRODUCT_UTI_EXTENSIONS: LazyLock<HashMap<&'static str, &'static str>> =
-    LazyLock::new(|| {
-        let mut m = HashMap::new();
-        m.insert("com.apple.product-type.application", "app");
-        m.insert("com.apple.product-type.application.on-demand-install-capable", "app");
-        m.insert("com.apple.product-type.app-extension", "appex");
-        m.insert("com.apple.product-type.bundle", "bundle");
-        m.insert("com.apple.product-type.framework", "framework");
-        m.insert("com.apple.product-type.library.dynamic", "dylib");
-        m.insert("com.apple.product-type.library.static", "a");
-        m.insert("com.apple.product-type.tool", "");
-        m.insert("com.apple.product-type.unit-test-bundle", "xctest");
-        m.insert("com.apple.product-type.ui-testing-bundle", "xctest");
-        m.insert("com.apple.product-type.application.watchapp", "app");
-        m.insert("com.apple.product-type.application.watchapp2", "app");
-        m.insert("com.apple.product-type.watchkit-extension", "appex");
-        m
-    });
+pub static PRODUCT_UTI_EXTENSIONS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert("com.apple.product-type.application", "app");
+    m.insert("com.apple.product-type.application.on-demand-install-capable", "app");
+    m.insert("com.apple.product-type.app-extension", "appex");
+    m.insert("com.apple.product-type.bundle", "bundle");
+    m.insert("com.apple.product-type.framework", "framework");
+    m.insert("com.apple.product-type.library.dynamic", "dylib");
+    m.insert("com.apple.product-type.library.static", "a");
+    m.insert("com.apple.product-type.tool", "");
+    m.insert("com.apple.product-type.unit-test-bundle", "xctest");
+    m.insert("com.apple.product-type.ui-testing-bundle", "xctest");
+    m.insert("com.apple.product-type.application.watchapp", "app");
+    m.insert("com.apple.product-type.application.watchapp2", "app");
+    m.insert("com.apple.product-type.watchkit-extension", "appex");
+    m
+});
 
 /// Maps file types to their default sourceTree values.
-pub static SOURCETREE_BY_FILETYPE: LazyLock<HashMap<&'static str, &'static str>> =
-    LazyLock::new(|| {
-        let mut m = HashMap::new();
-        m.insert("wrapper.application", "BUILT_PRODUCTS_DIR");
-        m.insert("wrapper.framework", "BUILT_PRODUCTS_DIR");
-        m.insert("compiled.mach-o.dylib", "BUILT_PRODUCTS_DIR");
-        m.insert("wrapper.plug-in", "BUILT_PRODUCTS_DIR");
-        m.insert("archive.ar", "BUILT_PRODUCTS_DIR");
-        m
-    });
+pub static SOURCETREE_BY_FILETYPE: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert("wrapper.application", "BUILT_PRODUCTS_DIR");
+    m.insert("wrapper.framework", "BUILT_PRODUCTS_DIR");
+    m.insert("compiled.mach-o.dylib", "BUILT_PRODUCTS_DIR");
+    m.insert("wrapper.plug-in", "BUILT_PRODUCTS_DIR");
+    m.insert("archive.ar", "BUILT_PRODUCTS_DIR");
+    m
+});
 
-// SDK version constants
-pub const LAST_KNOWN_IOS_SDK: &str = "18.0";
-pub const LAST_KNOWN_OSX_SDK: &str = "15.0";
-pub const LAST_KNOWN_TVOS_SDK: &str = "18.0";
-pub const LAST_KNOWN_WATCHOS_SDK: &str = "11.0";
-pub const LAST_KNOWN_VISIONOS_SDK: &str = "2.0";
+// SDK version constants (Xcode 26.2 / Dec 2025)
+pub const LAST_KNOWN_IOS_SDK: &str = "26.2";
+pub const LAST_KNOWN_OSX_SDK: &str = "26.2";
+pub const LAST_KNOWN_TVOS_SDK: &str = "26.2";
+pub const LAST_KNOWN_WATCHOS_SDK: &str = "26.2";
+pub const LAST_KNOWN_VISIONOS_SDK: &str = "26.2";
 pub const LAST_KNOWN_ARCHIVE_VERSION: i64 = 1;
 pub const LAST_KNOWN_OBJECT_VERSION: i64 = 77;
 pub const DEFAULT_OBJECT_VERSION: i64 = 46;
-pub const LAST_UPGRADE_CHECK: &str = "1600";
+pub const LAST_UPGRADE_CHECK: &str = "2600";
 
 /// Default build settings for new projects.
 pub struct ProjectDefaultBuildSettings;
