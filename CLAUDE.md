@@ -37,6 +37,7 @@ make clean              # removes target/, *.node, index.js, index.d.ts
 ### Two-Layer Design
 
 **Pure Rust library** (works without Node.js, tested with `--no-default-features`):
+
 - `src/parser/` — lexer + recursive descent parser → `PlistValue`
 - `src/writer/` — `PlistValue` → .pbxproj text
 - `src/project/` — `XcodeProject` high-level container
@@ -44,6 +45,7 @@ make clean              # removes target/, *.node, index.js, index.d.ts
 - `src/objects/` — `PbxObject` generic wrapper with ISA-based dispatch
 
 **napi bindings** (feature-gated behind `napi` feature):
+
 - `src/lib.rs` — `#[cfg(feature = "napi")] mod napi_bindings` wraps the pure Rust API
 
 ### Key Design Decisions
@@ -56,7 +58,7 @@ make clean              # removes target/, *.node, index.js, index.d.ts
 
 **`serde_json` with `preserve_order`.** Critical for round-trip fidelity — without it, JSON serialization reorders keys alphabetically, breaking pbxproj output. The `preserve_order` feature makes `serde_json::Value` use `IndexMap` internally.
 
-**Comment generation uses a reverse index.** The `create_reference_list` function pre-builds a `HashMap<build_file_uuid, (phase_isa, phase_name)>` to avoid O(n*m) scanning for each build file's containing phase.
+**Comment generation uses a reverse index.** The `create_reference_list` function pre-builds a `HashMap<build_file_uuid, (phase_isa, phase_name)>` to avoid O(n\*m) scanning for each build file's containing phase.
 
 ### Data Flow
 
@@ -80,6 +82,23 @@ The `XcodeProject` path is the fastest because data never crosses the JS/Rust FF
 20 `.pbxproj` files in `__test__/fixtures/` from real-world projects. 13 of these are "round-trip fixtures" — parse → build must produce byte-identical output. The `malformed.pbxproj` fixture has an intentional orphaned reference (UUID `3E1C2299F05049539341855D`) for testing graceful error handling.
 
 Fixture files must have LF line endings (enforced by `.gitattributes`) for round-trip tests to pass on Windows.
+
+## Releasing
+
+Pushing a version tag triggers the publish workflow (`.github/workflows/publish.yml`):
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+This builds all 5 platform binaries, runs tests, publishes platform packages (`@xcodekit/xcode-darwin-arm64`, etc.) to npm, then publishes the main `@xcodekit/xcode` package, and creates a GitHub Release.
+
+**Before tagging:** update `version` in `package.json` and all `npm/*/package.json` files to match the tag. The `optionalDependencies` versions in the root `package.json` must also match.
+
+**Secrets required:** `NPM_TOKEN` (granular access token with "Bypass 2FA" enabled, read-write on packages and the `xcodekit` org).
+
+**Cross-compilation:** The `aarch64-unknown-linux-gnu` target uses `--zig` flag for cross-compiling on an x86 Ubuntu runner.
 
 ### Generated Files (gitignored)
 
