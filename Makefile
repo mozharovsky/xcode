@@ -1,7 +1,7 @@
-.PHONY: test test-rust test-js build build-debug build-release clean fmt lint check bench bench-rust bench-js
+.PHONY: test test-rust test-js test-wasm build build-debug build-release build-wasm clean fmt lint check bench bench-rust bench-js
 
-# Run all tests (Rust + JS)
-test: test-rust test-js
+# Run all tests (Rust + JS + WASM)
+test: test-rust test-js test-wasm
 
 # Rust tests (no napi linking needed)
 test-rust:
@@ -10,6 +10,10 @@ test-rust:
 # JS integration tests (requires native binary)
 test-js: build-debug
 	npx ava __test__/index.spec.mjs
+
+# WASM integration tests (requires: make build-wasm)
+test-wasm:
+	npx ava __test__/wasm.spec.mjs
 
 # Build native binary (debug, fast)
 build-debug:
@@ -22,21 +26,30 @@ build-release:
 # Alias
 build: build-release
 
+# Build WASM package (web, node, bundler targets)
+build-wasm:
+	wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
+	wasm-pack build --target nodejs --out-dir pkg/node -- --no-default-features --features wasm
+	wasm-pack build --target bundler --out-dir pkg/bundler -- --no-default-features --features wasm
+	./scripts/fix-wasm-pkg.sh
+
 # Check Rust compiles (fast, no codegen)
 check:
 	cargo check --no-default-features
 	cargo check --features napi
+	cargo check --no-default-features --features wasm --target wasm32-unknown-unknown
 
 # Format
 fmt:
 	cargo fmt
+	npx prettier --write "**/*.{js,mjs,ts,json}" --ignore-path .prettierignore
 
 # Lint
 lint:
 	cargo clippy --no-default-features -- -D warnings
 
 # Run all benchmarks
-bench: bench-rust bench-js
+bench: bench-rust bench-js bench-wasm
 
 # Pure Rust benchmark (no napi overhead)
 bench-rust:
@@ -46,7 +59,11 @@ bench-rust:
 bench-js: build-release
 	node benches/benchmark.mjs
 
+# WASM benchmark
+bench-wasm:
+	node benches/benchmark-wasm.mjs
+
 # Clean all build artifacts
 clean:
 	cargo clean
-	rm -f *.node index.js index.d.ts
+	rm -rf *.node index.js index.d.ts pkg/
