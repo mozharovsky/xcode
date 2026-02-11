@@ -103,6 +103,12 @@ mod wasm_bindings {
             self.inner.set_target_name(target_uuid, name)
         }
 
+        /// Rename a target and cascade through the project (group paths, product refs, proxies).
+        #[wasm_bindgen(js_name = "renameTarget")]
+        pub fn rename_target(&mut self, target_uuid: &str, old_name: &str, new_name: &str) -> bool {
+            self.inner.rename_target(target_uuid, old_name, new_name)
+        }
+
         #[wasm_bindgen(js_name = "createNativeTarget")]
         pub fn create_native_target(&mut self, name: &str, product_type: &str, bundle_id: &str) -> Option<String> {
             self.inner.create_native_target(name, product_type, bundle_id)
@@ -493,6 +499,12 @@ mod napi_bindings {
         #[napi]
         pub fn set_target_name(&mut self, target_uuid: String, name: String) -> bool {
             self.inner.set_target_name(&target_uuid, &name)
+        }
+
+        /// Rename a target and cascade through the project (group paths, product refs, proxies).
+        #[napi]
+        pub fn rename_target(&mut self, target_uuid: String, old_name: String, new_name: String) -> bool {
+            self.inner.rename_target(&target_uuid, &old_name, &new_name)
         }
     }
 }

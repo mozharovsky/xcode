@@ -873,6 +873,78 @@ impl XcodeProject {
         }
     }
 
+    /// Rename a target and cascade the change through the project.
+    ///
+    /// Updates:
+    /// - Target name and productName
+    /// - Main group child with matching path (group path + name)
+    /// - Product reference path (e.g. OldName.app → NewName.app)
+    /// - PBXContainerItemProxy remoteInfo referencing the old name
+    /// - XCConfigurationList display comment (via target name)
+    ///
+    /// Returns true if the target was found and renamed.
+    pub fn rename_target(&mut self, target_uuid: &str, old_name: &str, new_name: &str) -> bool {
+        // 1. Update target name + productName
+        if !self.set_target_name(target_uuid, new_name) {
+            return false;
+        }
+
+        // 2. Update product reference path (e.g. OldName.app → NewName.app)
+        let product_ref_uuid = self
+            .get_object(target_uuid)
+            .and_then(|t| t.get_str("productReference"))
+            .map(|s| s.to_string());
+
+        if let Some(ref product_uuid) = product_ref_uuid {
+            if let Some(product) = self.get_object_mut(product_uuid) {
+                if let Some(old_path) = product.get_str("path").map(|s| s.to_string()) {
+                    let new_path = old_path.replace(old_name, new_name);
+                    product.set_str("path", &new_path);
+                }
+            }
+        }
+
+        // 3. Update main group children with matching path
+        let main_group = self.main_group_uuid();
+        if let Some(mg_uuid) = main_group {
+            let children = self.get_group_children(&mg_uuid);
+            for child_uuid in children {
+                let matches = self
+                    .get_object(&child_uuid)
+                    .and_then(|c| c.get_str("path"))
+                    .map(|p| p == old_name)
+                    .unwrap_or(false);
+
+                if matches {
+                    if let Some(child) = self.get_object_mut(&child_uuid) {
+                        child.set_str("path", new_name);
+                        if child.get_str("name").is_some() {
+                            child.set_str("name", new_name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Update PBXContainerItemProxy remoteInfo
+        let proxy_uuids = self.find_objects_by_isa("PBXContainerItemProxy");
+        for proxy_uuid in proxy_uuids {
+            let matches = self
+                .get_object(&proxy_uuid)
+                .and_then(|p| p.get_str("remoteInfo"))
+                .map(|info| info == old_name)
+                .unwrap_or(false);
+
+            if matches {
+                if let Some(proxy) = self.get_object_mut(&proxy_uuid) {
+                    proxy.set_str("remoteInfo", new_name);
+                }
+            }
+        }
+
+        true
+    }
+
     // ── Extension embedding ────────────────────────────────────────
 
     /// Embed an extension target into a host app target.
