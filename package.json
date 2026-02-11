@@ -24,7 +24,8 @@
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0",
-    "ava": "^6.0.0"
+    "ava": "^6.0.0",
+    "prettier": "^3.8.1"
   },
   "scripts": {
     "artifacts": "napi artifacts",
