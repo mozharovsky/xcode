@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode-linux-x64-gnu",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "os": ["linux"],
   "cpu": ["x64"],
   "main": "xcode.linux-x64-gnu.node",
