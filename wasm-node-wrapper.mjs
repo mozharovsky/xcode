@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync } from "fs";
 import * as wasm from "./xcode.js";
 import wasmBytes from "./xcode_bg_wasm_inline.js";
 
-await wasm.default({ module_or_path: wasmBytes });
+wasm.initSync({ module: wasmBytes });
 
 class XcodeProject extends wasm.XcodeProject {
   /** @type {string | null} */
