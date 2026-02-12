@@ -12,19 +12,25 @@ pub mod writer;
 
 #[cfg(feature = "wasm")]
 mod wasm_bindings {
+    use serde::Serialize;
     use wasm_bindgen::prelude::*;
 
-    /// Parse a .pbxproj string into a JSON string.
-    #[wasm_bindgen]
-    pub fn parse(text: &str) -> Result<String, JsError> {
-        let plist = crate::parser::parse(text).map_err(|e| JsError::new(&e))?;
-        serde_json::to_string(&plist).map_err(|e| JsError::new(&e.to_string()))
+    fn serializer() -> serde_wasm_bindgen::Serializer {
+        serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true)
     }
 
-    /// Serialize a JSON string back to .pbxproj format.
+    /// Parse a .pbxproj string into a JS object.
     #[wasm_bindgen]
-    pub fn build(json: &str) -> Result<String, JsError> {
-        let plist: crate::types::PlistValue = serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
+    pub fn parse(text: &str) -> Result<JsValue, JsError> {
+        let plist = crate::parser::parse(text).map_err(|e| JsError::new(&e))?;
+        plist.serialize(&serializer()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Serialize a JS object back to .pbxproj format.
+    #[wasm_bindgen]
+    pub fn build(project: JsValue) -> Result<String, JsError> {
+        let plist: crate::types::PlistValue =
+            serde_wasm_bindgen::from_value(project).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(crate::writer::serializer::build(&plist))
     }
 
@@ -56,11 +62,11 @@ mod wasm_bindings {
             self.inner.to_pbxproj()
         }
 
-        /// Convert the project to a JSON string.
+        /// Convert the project to a JS object.
         #[wasm_bindgen(js_name = "toJSON")]
-        pub fn to_json(&self) -> Result<String, JsError> {
+        pub fn to_json(&self) -> Result<JsValue, JsError> {
             let plist = self.inner.to_plist();
-            serde_json::to_string(&plist).map_err(|e| JsError::new(&e.to_string()))
+            plist.serialize(&serializer()).map_err(|e| JsError::new(&e.to_string()))
         }
 
         // ── Properties ───────────────────────────────────────────
