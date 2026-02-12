@@ -1,9 +1,8 @@
 /**
  * ESM wrapper for @xcodekit/xcode-wasm/node.
- * Adds open() and save() methods using the filesystem.
  *
  * Usage:
- *   import { XcodeProject } from "@xcodekit/xcode-wasm/node";
+ *   import { XcodeProject, parse, build } from "@xcodekit/xcode-wasm/node";
  */
 
 import { readFileSync, writeFileSync } from "fs";

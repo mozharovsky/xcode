@@ -1,11 +1,17 @@
 /**
  * Type declarations for @xcodekit/xcode-wasm/node.
- * Extends the base WASM XcodeProject with filesystem methods.
  */
 
-export { build, parse, parseAndBuild } from "./xcode";
-
 import { XcodeProject as BaseXcodeProject } from "./xcode";
+
+/** Parse a .pbxproj string into a JSON-compatible object. */
+export declare function parse(text: string): any;
+
+/** Serialize a JSON object back to .pbxproj format. */
+export declare function build(project: object): string;
+
+/** Parse and immediately re-serialize. Stays in WASM, zero marshalling. */
+export declare function parseAndBuild(text: string): string;
 
 export declare class XcodeProject extends BaseXcodeProject {
   /** Open and parse a .pbxproj file from disk. */
@@ -19,4 +25,7 @@ export declare class XcodeProject extends BaseXcodeProject {
 
   /** Write the project back to its original file. */
   save(): void;
+
+  /** Convert the project to a JSON-compatible object. */
+  toJSON(): any;
 }

@@ -1,9 +1,8 @@
 /**
  * Node.js wrapper for @xcodekit/xcode-wasm/node.
- * Adds open() and save() methods using the filesystem.
  *
  * Usage:
- *   const { XcodeProject } = require("@xcodekit/xcode-wasm/node");
+ *   const { XcodeProject, parse, build } = require("@xcodekit/xcode-wasm/node");
  */
 
 const { readFileSync, writeFileSync } = require("fs");
