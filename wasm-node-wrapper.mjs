@@ -1,13 +1,16 @@
 /**
- * Node.js wrapper for @xcodekit/xcode-wasm/node.
+ * ESM wrapper for @xcodekit/xcode-wasm/node.
  * Adds open() and save() methods using the filesystem.
  *
  * Usage:
- *   const { XcodeProject } = require("@xcodekit/xcode-wasm/node");
+ *   import { XcodeProject } from "@xcodekit/xcode-wasm/node";
  */
 
-const { readFileSync, writeFileSync } = require("fs");
-const wasm = require("./xcode");
+import { readFileSync, writeFileSync } from "fs";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const wasm = require("./xcode.js");
 
 class XcodeProject extends wasm.XcodeProject {
   #filePath = null;
@@ -33,4 +36,5 @@ class XcodeProject extends wasm.XcodeProject {
   }
 }
 
-module.exports = { ...wasm, XcodeProject };
+export { XcodeProject };
+export const { parse, build, parseAndBuild } = wasm;
