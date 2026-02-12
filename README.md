@@ -155,19 +155,15 @@ All `XcodeProject` methods operate in Rust/WASM — only primitive strings cross
 
 ### WASM
 
-The WASM build (`@xcodekit/xcode-wasm`) has the same API with minor differences:
-
-- `parse()` / `build()` work with JSON **strings** (not JS objects) — call `JSON.parse()` / `JSON.stringify()` on your side
-- `XcodeProject` is created with `new XcodeProject(content)` instead of factory methods
+The WASM build (`@xcodekit/xcode-wasm`) has the same API — `parse()` and `build()` work with JS objects directly (via `serde-wasm-bindgen`, no JSON round-trips). The only difference is `XcodeProject` uses `new XcodeProject(content)` instead of factory methods.
 
 ```js
 // Browser / Deno / Cloudflare Workers
 import { parse, build, XcodeProject } from "@xcodekit/xcode-wasm";
 
-// Low-level
-const json = parse(text); // returns JSON string
-const project = JSON.parse(json);
-const output = build(json); // accepts JSON string
+// Low-level (same API as napi)
+const project = parse(text); // returns JS object
+const output = build(project); // accepts JS object
 
 // High-level (same API as napi)
 const xcode = new XcodeProject(text);
