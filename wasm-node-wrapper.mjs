@@ -7,6 +7,9 @@
 
 import { readFileSync, writeFileSync } from "fs";
 import * as wasm from "./xcode.js";
+import wasmModule from "./xcode_bg.wasm";
+
+await wasm.default(wasmModule);
 
 class XcodeProject extends wasm.XcodeProject {
   /** @type {string | null} */

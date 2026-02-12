@@ -35,31 +35,50 @@ for dir in pkg/web pkg/node pkg/bundler; do
   fi
 done
 
-# Copy Node.js wrappers (CJS + ESM + types) into each pkg target
-for dir in pkg/node pkg/bundler; do
-  if [ -d "$dir" ]; then
-    cp wasm-node-wrapper.js "$dir/node-wrapper.js"
-    cp wasm-node-wrapper.mjs "$dir/node-wrapper.mjs"
-    cp wasm-node-wrapper.d.ts "$dir/node-wrapper.d.ts"
+# Copy ESM wrapper + types into pkg/web (published target, --target web)
+if [ -d "pkg/web" ]; then
+  cp wasm-node-wrapper.mjs "pkg/web/node-wrapper.mjs"
+  cp wasm-node-wrapper.d.ts "pkg/web/node-wrapper.d.ts"
 
-    node -e "
-      const pkg = require('./$dir/package.json');
-      if (!pkg.exports) pkg.exports = {};
-      pkg.exports['.'] = {
-        import: './xcode.js',
-        require: './xcode.js',
-        types: './xcode.d.ts'
-      };
-      pkg.exports['./node'] = {
-        import: './node-wrapper.mjs',
-        require: './node-wrapper.js',
-        types: './node-wrapper.d.ts'
-      };
-      if (!pkg.files.includes('node-wrapper.js')) pkg.files.push('node-wrapper.js');
-      if (!pkg.files.includes('node-wrapper.mjs')) pkg.files.push('node-wrapper.mjs');
-      if (!pkg.files.includes('node-wrapper.d.ts')) pkg.files.push('node-wrapper.d.ts');
-      require('fs').writeFileSync('./$dir/package.json', JSON.stringify(pkg, null, 2) + '\n');
-    "
-    echo "Added Node.js wrappers (CJS + ESM + types) to $dir"
-  fi
-done
+  node -e "
+    const pkg = require('./pkg/web/package.json');
+    if (!pkg.exports) pkg.exports = {};
+    pkg.exports['.'] = {
+      types: './xcode.d.ts',
+      import: './xcode.js',
+      default: './xcode.js'
+    };
+    pkg.exports['./node'] = {
+      types: './node-wrapper.d.ts',
+      import: './node-wrapper.mjs',
+      default: './node-wrapper.mjs'
+    };
+    if (!pkg.files.includes('node-wrapper.mjs')) pkg.files.push('node-wrapper.mjs');
+    if (!pkg.files.includes('node-wrapper.d.ts')) pkg.files.push('node-wrapper.d.ts');
+    require('fs').writeFileSync('./pkg/web/package.json', JSON.stringify(pkg, null, 2) + '\n');
+  "
+  echo "Added ESM wrapper + types to pkg/web"
+fi
+
+# Copy CJS wrapper + types into pkg/node (local dev/testing, --target nodejs)
+if [ -d "pkg/node" ]; then
+  cp wasm-node-wrapper.js "pkg/node/node-wrapper.js"
+  cp wasm-node-wrapper.d.ts "pkg/node/node-wrapper.d.ts"
+
+  node -e "
+    const pkg = require('./pkg/node/package.json');
+    if (!pkg.exports) pkg.exports = {};
+    pkg.exports['.'] = {
+      require: './xcode.js',
+      types: './xcode.d.ts'
+    };
+    pkg.exports['./node'] = {
+      require: './node-wrapper.js',
+      types: './node-wrapper.d.ts'
+    };
+    if (!pkg.files.includes('node-wrapper.js')) pkg.files.push('node-wrapper.js');
+    if (!pkg.files.includes('node-wrapper.d.ts')) pkg.files.push('node-wrapper.d.ts');
+    require('fs').writeFileSync('./pkg/node/package.json', JSON.stringify(pkg, null, 2) + '\n');
+  "
+  echo "Added CJS wrapper + types to pkg/node"
+fi

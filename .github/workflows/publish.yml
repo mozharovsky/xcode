@@ -133,11 +133,11 @@ jobs:
 
       - name: Build WASM
         run: |
-          wasm-pack build --target bundler --out-dir pkg/bundler -- --no-default-features --features wasm
+          wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
           ./scripts/fix-wasm-pkg.sh
 
       - name: Publish WASM package
-        run: cd pkg/bundler && npm publish --access public
+        run: cd pkg/web && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
