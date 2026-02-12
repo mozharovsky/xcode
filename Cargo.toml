@@ -4,6 +4,7 @@ version = "0.6.5"
 edition = "2021"
 license = "MIT"
 description = "Parse, manipulate, and serialize Xcode .pbxproj files"
+repository = "https://github.com/mozharovsky/xcode"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -23,7 +24,6 @@ indexmap = { version = "2", features = ["serde"] }
 md-5 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-regex = "1"
 
 [build-dependencies]
 napi-build = "2"

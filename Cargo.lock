@@ -445,7 +445,6 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "pretty_assertions",
- "regex",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
