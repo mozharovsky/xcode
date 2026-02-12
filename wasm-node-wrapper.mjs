@@ -1,16 +1,19 @@
 /**
- * ESM wrapper for @xcodekit/xcode-wasm/node.
+ * Universal entry for @xcodekit/xcode-wasm.
+ *
+ * WASM binary is inlined as base64 (generated at build time), so this
+ * works in Node.js, Bun, and any bundler — no fetch(), no file resolution,
+ * no import.meta.url. Just bytes in memory.
  *
  * Usage:
- *   import { XcodeProject, parse, build } from "@xcodekit/xcode-wasm/node";
+ *   import { XcodeProject, parse, build } from "@xcodekit/xcode-wasm";
+ *   import { XcodeProject, parse, build } from "@xcodekit/xcode-wasm/node";  // alias
  */
 
 import { readFileSync, writeFileSync } from "fs";
-import { fileURLToPath } from "url";
 import * as wasm from "./xcode.js";
+import wasmBytes from "./xcode_bg_wasm_inline.js";
 
-const wasmPath = fileURLToPath(new URL("./xcode_bg.wasm", import.meta.url));
-const wasmBytes = readFileSync(wasmPath);
 await wasm.default({ module_or_path: wasmBytes });
 
 class XcodeProject extends wasm.XcodeProject {

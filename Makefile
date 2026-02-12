@@ -26,11 +26,9 @@ build-release:
 # Alias
 build: build-release
 
-# Build WASM package (web, node, bundler targets)
+# Build WASM package (single web target, WASM inlined as base64)
 build-wasm:
 	wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
-	wasm-pack build --target nodejs --out-dir pkg/node -- --no-default-features --features wasm
-	wasm-pack build --target bundler --out-dir pkg/bundler -- --no-default-features --features wasm
 	./scripts/fix-wasm-pkg.sh
 
 # Check Rust compiles (fast, no codegen)
