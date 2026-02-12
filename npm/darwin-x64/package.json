@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode-darwin-x64",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "os": ["darwin"],
   "cpu": ["x64"],
   "main": "xcode.darwin-x64.node",
