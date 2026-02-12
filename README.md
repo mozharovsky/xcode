@@ -180,11 +180,25 @@ const pbxproj = xcode.toBuild();
 Use the `/node` subpath to get `open()` and `save()`:
 
 ```js
+// ESM
+import { XcodeProject } from "@xcodekit/xcode-wasm/node";
+
+// CJS
 const { XcodeProject } = require("@xcodekit/xcode-wasm/node");
 
 const project = XcodeProject.open("project.pbxproj");
 project.setBuildSetting(target, "SWIFT_VERSION", "6.0");
 project.save();
+```
+
+### Shared Types
+
+Both packages ship `types.d.ts` with rich TypeScript types for the parsed JSON structure:
+
+```ts
+import type { ParsedProject, PBXNativeTarget, BuildSettings, ISA } from "@xcodekit/xcode-wasm/types";
+// or
+import type { ParsedProject, PBXNativeTarget, BuildSettings, ISA } from "@xcodekit/xcode/types";
 ```
 
 ## Performance
