@@ -63,7 +63,8 @@ node -e "
     './types': { types: './types.d.ts' }
   };
 
-  // Files to publish
+  // Files to publish (drop raw .wasm — it's inlined as base64)
+  pkg.files = pkg.files.filter(f => !f.endsWith('.wasm'));
   const extra = ['index.mjs', 'index.d.ts', 'types.d.ts', 'xcode_bg_wasm_inline.js'];
   for (const f of extra) {
     if (!pkg.files.includes(f)) pkg.files.push(f);
@@ -71,4 +72,6 @@ node -e "
 
   require('fs').writeFileSync('./pkg/web/package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
-echo "Set exports: '.' and './node' → index.mjs"
+
+rm -f pkg/web/xcode_bg.wasm
+echo "Set exports: '.' and './node' → index.mjs (dropped raw .wasm)"
