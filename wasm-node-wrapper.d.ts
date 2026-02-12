@@ -3,9 +3,9 @@
  * Extends the base WASM XcodeProject with filesystem methods.
  */
 
-export { build, parse, parseAndBuild } from "./pkg/node/xcode";
+export { build, parse, parseAndBuild } from "./xcode";
 
-import { XcodeProject as BaseXcodeProject } from "./pkg/node/xcode";
+import { XcodeProject as BaseXcodeProject } from "./xcode";
 
 export declare class XcodeProject extends BaseXcodeProject {
   /** Open and parse a .pbxproj file from disk. */
