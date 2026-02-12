@@ -6,10 +6,12 @@
  */
 
 import { readFileSync, writeFileSync } from "fs";
+import { fileURLToPath } from "url";
 import * as wasm from "./xcode.js";
-import wasmModule from "./xcode_bg.wasm";
 
-await wasm.default(wasmModule);
+const wasmPath = fileURLToPath(new URL("./xcode_bg.wasm", import.meta.url));
+const wasmBytes = readFileSync(wasmPath);
+await wasm.default({ module_or_path: wasmBytes });
 
 class XcodeProject extends wasm.XcodeProject {
   /** @type {string | null} */
