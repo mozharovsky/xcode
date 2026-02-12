@@ -24,10 +24,10 @@ try {
 }
 
 if (wasm) {
-  test("parse returns valid JSON", (t) => {
+  test("parse returns a JS object", (t) => {
     const text = readFileSync(join(FIXTURES_DIR, "project.pbxproj"), "utf8");
-    const json = wasm.parse(text);
-    const parsed = JSON.parse(json);
+    const parsed = wasm.parse(text);
+    t.is(typeof parsed, "object");
     t.is(parsed.archiveVersion, 1);
     t.truthy(parsed.objects);
     t.truthy(parsed.rootObject);
