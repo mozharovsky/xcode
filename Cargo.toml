@@ -11,13 +11,14 @@ crate-type = ["cdylib", "lib"]
 [features]
 default = ["napi"]
 napi = ["dep:napi", "dep:napi-derive"]
-wasm = ["dep:wasm-bindgen", "dep:js-sys"]
+wasm = ["dep:wasm-bindgen", "dep:js-sys", "dep:serde-wasm-bindgen"]
 
 [dependencies]
 napi = { version = "2", features = ["serde-json", "napi9"], optional = true }
 napi-derive = { version = "2", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 md-5 = "0.10"
 serde = { version = "1", features = ["derive"] }
