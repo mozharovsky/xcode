@@ -29,7 +29,7 @@ build: build-release
 # Build WASM package (single web target, WASM inlined as base64)
 build-wasm:
 	wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
-	./scripts/fix-wasm-pkg.sh
+	./scripts/build-wasm-pkg.sh
 
 # Check Rust compiles (fast, no codegen)
 check:
