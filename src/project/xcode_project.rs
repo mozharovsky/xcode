@@ -716,7 +716,7 @@ impl XcodeProject {
             "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
             PlistValue::String(bundle_id.to_string()),
         );
-        debug_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(format!("\"{}\"", name)));
+        debug_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(name.to_string()));
         debug_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
 
         let mut debug_props = IndexMap::new();
@@ -734,7 +734,7 @@ impl XcodeProject {
             "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
             PlistValue::String(bundle_id.to_string()),
         );
-        release_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(format!("\"{}\"", name)));
+        release_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(name.to_string()));
         release_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
 
         let mut release_props = IndexMap::new();
