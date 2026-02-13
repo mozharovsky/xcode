@@ -1,4 +1,4 @@
-.PHONY: test test-rust test-js test-wasm build build-debug build-release build-wasm clean fmt lint check bench bench-rust bench-js
+.PHONY: test test-rust test-js test-wasm build build-debug build-release build-node build-wasm build-all clean fmt lint check bench bench-rust bench-js
 
 # Run all tests (Rust + JS + WASM)
 test: test-rust test-js test-wasm
@@ -9,11 +9,11 @@ test-rust:
 
 # JS integration tests (requires native binary)
 test-js: build-debug
-	npx ava __test__/index.spec.mjs
+	npx vitest run tests/node.test.mjs
 
 # WASM integration tests (requires: make build-wasm)
 test-wasm:
-	npx ava __test__/wasm.spec.mjs
+	npx vitest run tests/wasm.test.mjs
 
 # Build native binary (debug, fast)
 build-debug:
@@ -26,10 +26,17 @@ build-release:
 # Alias
 build: build-release
 
-# Build WASM package (single web target, WASM inlined as base64)
+# Build @xcodekit/xcode-node → npm/xcode-node/
+build-node: build-release
+	./scripts/build-node-pkg.sh
+
+# Build @xcodekit/xcode-wasm → pkg/xcode-wasm/
 build-wasm:
-	wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
+	wasm-pack build --target web --out-dir pkg/wasm-build -- --no-default-features --features wasm
 	./scripts/build-wasm-pkg.sh
+
+# Build all publishable packages
+build-all: build-node build-wasm
 
 # Check Rust compiles (fast, no codegen)
 check:

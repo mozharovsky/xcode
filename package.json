@@ -1,9 +1,6 @@
 {
-  "name": "@xcodekit/xcode",
+  "private": true,
   "version": "0.6.7",
-  "description": "Parse, manipulate, and serialize Xcode .pbxproj files — native Rust rewrite",
-  "main": "index.js",
-  "types": "index.d.ts",
   "napi": {
     "name": "xcode",
     "triples": {
@@ -14,47 +11,22 @@
       ]
     }
   },
-  "license": "MIT",
-  "optionalDependencies": {
-    "@xcodekit/xcode-darwin-arm64": "0.6.7",
-    "@xcodekit/xcode-darwin-x64": "0.6.7",
-    "@xcodekit/xcode-linux-arm64-gnu": "0.6.7",
-    "@xcodekit/xcode-linux-x64-gnu": "0.6.7",
-    "@xcodekit/xcode-win32-x64-msvc": "0.6.7"
-  },
-  "devDependencies": {
-    "@napi-rs/cli": "^2.18.0",
-    "ava": "^6.0.0",
-    "prettier": "^3.8.1"
-  },
   "scripts": {
     "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "test": "ava",
+    "test": "vitest run",
     "universal": "napi universal",
     "version": "napi version"
   },
-  "ava": {
-    "timeout": "60000"
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0",
+    "prettier": "^3.8.1",
+    "vitest": "^4.0.18"
   },
-  "files": [
-    "index.js",
-    "index.d.ts",
-    "types.d.ts"
-  ],
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/mozharovsky/xcode"
-  },
-  "keywords": [
-    "xcode",
-    "pbxproj",
-    "ios",
-    "apple",
-    "parser",
-    "native",
-    "napi",
-    "rust"
-  ]
+  }
 }

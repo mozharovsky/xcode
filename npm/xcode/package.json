@@ -1,0 +1,38 @@
+{
+  "name": "@xcodekit/xcode",
+  "version": "0.6.7",
+  "description": "Parse, manipulate, and serialize Xcode .pbxproj files",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "node": "./node-entry.mjs",
+      "default": "./wasm-entry.mjs"
+    }
+  },
+  "files": [
+    "node-entry.mjs",
+    "wasm-entry.mjs",
+    "index.d.ts"
+  ],
+  "dependencies": {
+    "@xcodekit/xcode-wasm": "0.6.7"
+  },
+  "optionalDependencies": {
+    "@xcodekit/xcode-node": "0.6.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mozharovsky/xcode"
+  },
+  "license": "MIT",
+  "keywords": [
+    "xcode",
+    "pbxproj",
+    "ios",
+    "apple",
+    "parser",
+    "wasm",
+    "rust"
+  ]
+}

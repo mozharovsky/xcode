@@ -83,32 +83,32 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      # Download all binaries and place into npm dirs
+      # Download all binaries and place into platform dirs
       - uses: actions/download-artifact@v4
         with:
           name: bindings-darwin-arm64
-          path: npm/darwin-arm64
+          path: npm/xcode-node/platforms/darwin-arm64
       - uses: actions/download-artifact@v4
         with:
           name: bindings-darwin-x64
-          path: npm/darwin-x64
+          path: npm/xcode-node/platforms/darwin-x64
       - uses: actions/download-artifact@v4
         with:
           name: bindings-linux-x64-gnu
-          path: npm/linux-x64-gnu
+          path: npm/xcode-node/platforms/linux-x64-gnu
       - uses: actions/download-artifact@v4
         with:
           name: bindings-linux-arm64-gnu
-          path: npm/linux-arm64-gnu
+          path: npm/xcode-node/platforms/linux-arm64-gnu
       - uses: actions/download-artifact@v4
         with:
           name: bindings-win32-x64-msvc
-          path: npm/win32-x64-msvc
+          path: npm/xcode-node/platforms/win32-x64-msvc
 
       # Publish each platform package
       - name: Publish platform packages
         run: |
-          for dir in npm/*/; do
+          for dir in npm/xcode-node/platforms/*/; do
             if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
               echo "Publishing $dir..."
               (cd "$dir" && npm publish --access public) || true
@@ -117,17 +117,17 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Build index.js and index.d.ts for main package
+      # Build and publish @xcodekit/xcode-node (native napi addon)
       - run: npm install
       - run: npx napi build --platform --release --target x86_64-unknown-linux-gnu
+      - run: ./scripts/build-node-pkg.sh
 
-      # Publish main package
-      - name: Publish main package
-        run: npm publish --access public
+      - name: Publish @xcodekit/xcode-node
+        run: cd pkg/xcode-node && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Build and publish WASM package
+      # Build and publish @xcodekit/xcode-wasm
       - name: Install wasm-pack + binaryen
         run: |
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -135,11 +135,17 @@ jobs:
 
       - name: Build WASM
         run: |
-          wasm-pack build --target web --out-dir pkg/web -- --no-default-features --features wasm
+          wasm-pack build --target web --out-dir pkg/wasm-build -- --no-default-features --features wasm
           ./scripts/build-wasm-pkg.sh
 
-      - name: Publish WASM package
-        run: cd pkg/web && npm publish --access public
+      - name: Publish @xcodekit/xcode-wasm
+        run: cd pkg/xcode-wasm && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Publish @xcodekit/xcode (static facade — copy from npm/ to pkg/)
+      - name: Publish @xcodekit/xcode
+        run: cp -r npm/xcode pkg/xcode && cd pkg/xcode && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
