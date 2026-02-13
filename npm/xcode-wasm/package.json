@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode-wasm",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "description": "Parse, manipulate, and serialize Xcode .pbxproj files (WASM build)",
   "type": "module",
   "exports": {
