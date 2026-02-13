@@ -10,7 +10,7 @@ mod fixture_tests {
     use std::fs;
     use std::path::Path;
 
-    const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/__test__/fixtures");
+    const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
 
     /// All fixtures that should parse without error.
     const ALL_FIXTURES: &[&str] = &[

@@ -1098,7 +1098,7 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/__test__/fixtures");
+    const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
 
     #[test]
     fn test_open_project() {

@@ -26,7 +26,7 @@ try {
   ts = null;
 }
 
-const FIXTURES_DIR = join(__dirname, "..", "__test__", "fixtures");
+const FIXTURES_DIR = join(__dirname, "..", "tests", "fixtures");
 const WARMUP = 10;
 const ITERATIONS = 200;
 

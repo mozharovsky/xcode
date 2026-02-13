@@ -35,7 +35,7 @@ fn main() {
         ("project.pbxproj", "19 KB"),
     ];
 
-    let fixtures_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/__test__/fixtures");
+    let fixtures_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
 
     println!("================================================================");
     println!(" Pure Rust Benchmark (no napi/JS overhead)");

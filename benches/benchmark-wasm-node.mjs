@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
-const FIXTURES_DIR = join(__dirname, "..", "__test__", "fixtures");
+const FIXTURES_DIR = join(__dirname, "..", "tests", "fixtures");
 const WARMUP = 10;
 const ITERATIONS = 300;
 
