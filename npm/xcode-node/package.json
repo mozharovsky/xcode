@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode-node",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "Parse, manipulate, and serialize Xcode .pbxproj files — native Node.js addon (napi-rs)",
   "main": "index.js",
   "types": "index.d.ts",
@@ -10,11 +10,11 @@
     "types.d.ts"
   ],
   "optionalDependencies": {
-    "@xcodekit/xcode-darwin-arm64": "0.6.7",
-    "@xcodekit/xcode-darwin-x64": "0.6.7",
-    "@xcodekit/xcode-linux-arm64-gnu": "0.6.7",
-    "@xcodekit/xcode-linux-x64-gnu": "0.6.7",
-    "@xcodekit/xcode-win32-x64-msvc": "0.6.7"
+    "@xcodekit/xcode-darwin-arm64": "0.6.8",
+    "@xcodekit/xcode-darwin-x64": "0.6.8",
+    "@xcodekit/xcode-linux-arm64-gnu": "0.6.8",
+    "@xcodekit/xcode-linux-x64-gnu": "0.6.8",
+    "@xcodekit/xcode-win32-x64-msvc": "0.6.8"
   },
   "repository": {
     "type": "git",
