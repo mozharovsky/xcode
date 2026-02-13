@@ -32,17 +32,29 @@ If there are uncommitted changes, **STOP** and warn the user. Do not proceed wit
 
 ### 3. Update version in all files
 
-Replace the **old version** with the **new version** in these 7 files:
+Replace **all occurrences** of the old version with the new version. The easiest approach:
 
-| File                               | Fields                                            |
-| ---------------------------------- | ------------------------------------------------- |
-| `Cargo.toml`                       | `version`                                         |
-| `package.json`                     | `version` + all 5 `optionalDependencies` versions |
-| `npm/darwin-arm64/package.json`    | `version`                                         |
-| `npm/darwin-x64/package.json`      | `version`                                         |
-| `npm/linux-x64-gnu/package.json`   | `version`                                         |
-| `npm/linux-arm64-gnu/package.json` | `version`                                         |
-| `npm/win32-x64-msvc/package.json`  | `version`                                         |
+```bash
+# Find all files containing the old version
+grep -rl '"OLD_VERSION"' Cargo.toml package.json npm/
+```
+
+Files that need updating (11 total):
+
+| File                                                    | Fields                                              |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| `Cargo.toml`                                            | `version`                                           |
+| `package.json`                                          | `version`                                           |
+| `npm/xcode/package.json`                                | `version` + `dependencies` + `optionalDependencies` |
+| `npm/xcode-node/package.json`                           | `version` + `optionalDependencies`                  |
+| `npm/xcode-wasm/package.json`                           | `version`                                           |
+| `npm/xcode-node/platforms/darwin-arm64/package.json`    | `version`                                           |
+| `npm/xcode-node/platforms/darwin-x64/package.json`      | `version`                                           |
+| `npm/xcode-node/platforms/linux-x64-gnu/package.json`   | `version`                                           |
+| `npm/xcode-node/platforms/linux-arm64-gnu/package.json` | `version`                                           |
+| `npm/xcode-node/platforms/win32-x64-msvc/package.json`  | `version`                                           |
+
+**Tip:** For `npm/xcode/package.json` and `npm/xcode-node/package.json`, use `replace_all` since the version appears in multiple fields (version + dependency versions).
 
 ### 4. Run npm install
 
@@ -50,7 +62,7 @@ Replace the **old version** with the **new version** in these 7 files:
 npm install
 ```
 
-This syncs `package-lock.json` and `Cargo.lock` with the new versions.
+This syncs `package-lock.json` with the new versions.
 
 ### 5. Show summary and ASK for confirmation
 
@@ -66,11 +78,14 @@ Display:
 
 ```bash
 git add Cargo.toml Cargo.lock package.json package-lock.json \
-       npm/darwin-arm64/package.json \
-       npm/darwin-x64/package.json \
-       npm/linux-x64-gnu/package.json \
-       npm/linux-arm64-gnu/package.json \
-       npm/win32-x64-msvc/package.json
+       npm/xcode/package.json \
+       npm/xcode-node/package.json \
+       npm/xcode-wasm/package.json \
+       npm/xcode-node/platforms/darwin-arm64/package.json \
+       npm/xcode-node/platforms/darwin-x64/package.json \
+       npm/xcode-node/platforms/linux-x64-gnu/package.json \
+       npm/xcode-node/platforms/linux-arm64-gnu/package.json \
+       npm/xcode-node/platforms/win32-x64-msvc/package.json
 
 git commit -m "chore: bump version to X.Y.Z"
 
