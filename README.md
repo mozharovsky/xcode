@@ -2,17 +2,22 @@
 
 Super fast Xcode `.pbxproj` parser and serializer written in Rust.
 
-Drop-in replacement for the low-level API of [`@bacons/xcode`](https://github.com/EvanBacon/xcode) — same `parse()` and `build()` interface, **3-15x faster parsing**, byte-identical output. Available as a native binary (napi) or universal WASM.
+Drop-in replacement for the low-level API of [`@bacons/xcode`](https://github.com/EvanBacon/xcode) — same `parse()` and `build()` interface, **3-15x faster parsing**, byte-identical output.
 
 ## Install
 
 ```bash
-# Native (fastest, Node.js only)
+# Recommended — auto-selects native or WASM
 npm install @xcodekit/xcode
 
-# WASM (universal — browsers, Deno, Cloudflare Workers, etc.)
+# Native only (Node.js, fastest)
+npm install @xcodekit/xcode-node
+
+# WASM only (universal — Bun, CF Workers, any bundler)
 npm install @xcodekit/xcode-wasm
 ```
+
+`@xcodekit/xcode` is a thin auto-selector — in Node.js/Bun it tries the native addon first, everywhere else it uses WASM. You get optimal performance without choosing.
 
 ## Quick Start
 
@@ -56,17 +61,9 @@ Serialize a JSON object back to `.pbxproj` format. Produces byte-identical outpu
 writeFileSync("project.pbxproj", build(project));
 ```
 
-#### `buildFromJSON(json: string): string`
-
-Same as `build()` but accepts `JSON.stringify(project)` directly. Faster because it avoids napi's recursive JS-to-Rust object marshalling.
-
-```js
-const output = buildFromJSON(JSON.stringify(project));
-```
-
 #### `parseAndBuild(text: string): string`
 
-Parse and immediately re-serialize. Stays entirely in Rust with zero JS/Rust marshalling — the fastest possible round-trip path.
+Parse and immediately re-serialize. Stays entirely in Rust/WASM with zero JS marshalling — the fastest possible round-trip path.
 
 ```js
 const output = parseAndBuild(readFileSync("project.pbxproj", "utf8"));
@@ -76,7 +73,7 @@ const output = parseAndBuild(readFileSync("project.pbxproj", "utf8"));
 
 #### `XcodeProject.open(filePath)` / `XcodeProject.fromString(content)`
 
-Open from disk or parse from a string (e.g. content fetched over the network).
+Open from disk or parse from a string.
 
 ```js
 import { XcodeProject } from "@xcodekit/xcode";
@@ -153,126 +150,82 @@ const uuid = project.getUniqueId("my-seed-string"); // 24-char hex
 
 All `XcodeProject` methods operate in Rust/WASM — only primitive strings cross the boundary. This is the fastest path for project manipulation.
 
-### WASM
+## Packages
 
-The WASM build (`@xcodekit/xcode-wasm`) has the same API — `parse()` and `build()` work with JS objects directly (via `serde-wasm-bindgen`, no JSON round-trips). The only difference is `XcodeProject` uses `new XcodeProject(content)` instead of factory methods.
+| Package                | What                                             | Size    | Runtime                            |
+| ---------------------- | ------------------------------------------------ | ------- | ---------------------------------- |
+| `@xcodekit/xcode`      | Auto-selector (tries native, falls back to WASM) | ~4 KB   | Node.js, Bun, CF Workers, browsers |
+| `@xcodekit/xcode-node` | Native napi-rs addon                             | ~600 KB | Node.js only                       |
+| `@xcodekit/xcode-wasm` | WASM with inlined base64                         | ~370 KB | Everywhere                         |
 
-```js
-// Browser / Deno / Cloudflare Workers
-import { parse, build, XcodeProject } from "@xcodekit/xcode-wasm";
+`@xcodekit/xcode` uses [exports conditions](https://nodejs.org/api/packages.html#conditional-exports): the `node` condition loads native, `default` loads WASM. No try/catch at runtime for most environments.
 
-// Low-level (same API as napi)
-const project = parse(text); // returns JS object
-const output = build(project); // accepts JS object
+### When to use which
 
-// High-level (same API as napi)
-const xcode = new XcodeProject(text);
-xcode.setBuildSetting(target, "SWIFT_VERSION", "6.0");
-const pbxproj = xcode.toBuild();
-```
-
-### WASM on Node.js
-
-Use the `/node` subpath to get `open()` and `save()`:
-
-```js
-// ESM
-import { XcodeProject } from "@xcodekit/xcode-wasm/node";
-
-// CJS
-const { XcodeProject } = require("@xcodekit/xcode-wasm/node");
-
-const project = XcodeProject.open("project.pbxproj");
-project.setBuildSetting(target, "SWIFT_VERSION", "6.0");
-project.save();
-```
-
-### Shared Types
-
-Both packages ship `types.d.ts` with rich TypeScript types for the parsed JSON structure:
-
-```ts
-import type { ParsedProject, PBXNativeTarget, BuildSettings, ISA } from "@xcodekit/xcode-wasm/types";
-// or
-import type { ParsedProject, PBXNativeTarget, BuildSettings, ISA } from "@xcodekit/xcode/types";
-```
+| Environment               | Recommended                                          |
+| ------------------------- | ---------------------------------------------------- |
+| Node.js / Bun             | `@xcodekit/xcode` (auto-selects native)              |
+| Cloudflare Workers / edge | `@xcodekit/xcode` or `@xcodekit/xcode-wasm`          |
+| Bundled app (single file) | `@xcodekit/xcode-wasm` (inlined, no file resolution) |
+| Need max performance      | `@xcodekit/xcode-node` (direct, no facade overhead)  |
 
 ## Performance
 
 Benchmarked on Apple M4 Pro, Node.js v24. Median of 200 iterations.
 
-- **WASM** — `@xcodekit/xcode-wasm`, the WebAssembly build. Runs everywhere without native compilation, including edge runtimes and browsers.
-- **napi** — `@xcodekit/xcode`, the native Node.js addon via napi-rs. Fastest on supported platforms (macOS, Linux, Windows).
-- **TS** — `@bacons/xcode/json`, the original TypeScript implementation using Chevrotain.
+- **xcode-wasm** — `@xcodekit/xcode-wasm`
+- **xcode-node** — `@xcodekit/xcode-node`
+- **@bacons/xcode** — `@bacons/xcode/json`
 
 ### Parse
 
-| Fixture                    | WASM   | napi   | TS      | WASM vs TS | napi vs TS |
-| -------------------------- | ------ | ------ | ------- | ---------- | ---------- |
-| swift-protobuf (257 KB)    | 2.9 ms | 3.7 ms | 43.9 ms | **15.2x**  | **11.8x**  |
-| Cocoa-Application (166 KB) | 2.4 ms | 3.2 ms | 17.2 ms | **7.3x**   | **5.4x**   |
-| AFNetworking (99 KB)       | 1.3 ms | 1.7 ms | 6.6 ms  | **5.1x**   | **3.9x**   |
-| watch (48 KB)              | 0.7 ms | 0.9 ms | 2.1 ms  | **3.0x**   | **2.3x**   |
-| project (19 KB)            | 0.3 ms | 0.4 ms | 0.8 ms  | **2.9x**   | **2.2x**   |
+| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
+| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
+| swift-protobuf (257 KB)    | 2.9 ms     | 3.7 ms     | 43.9 ms       | **15.2x**    | **11.8x**    |
+| Cocoa-Application (166 KB) | 2.4 ms     | 3.2 ms     | 17.2 ms       | **7.3x**     | **5.4x**     |
+| AFNetworking (99 KB)       | 1.3 ms     | 1.7 ms     | 6.6 ms        | **5.1x**     | **3.9x**     |
+| watch (48 KB)              | 0.7 ms     | 0.9 ms     | 2.1 ms        | **3.0x**     | **2.3x**     |
+| project (19 KB)            | 0.3 ms     | 0.4 ms     | 0.8 ms        | **2.9x**     | **2.2x**     |
 
 ### Build
 
-| Fixture                    | WASM   | napi   | TS      | WASM vs TS  | napi vs TS  |
-| -------------------------- | ------ | ------ | ------- | ----------- | ----------- |
-| swift-protobuf (257 KB)    | 4.1 ms | 5.2 ms | 12.0 ms | **2.9x**    | **2.3x**    |
-| Cocoa-Application (166 KB) | 3.3 ms | 4.5 ms | 2.7 ms  | 1.2x slower | 1.7x slower |
-| AFNetworking (99 KB)       | 1.6 ms | 2.3 ms | 1.8 ms  | **1.1x**    | 1.3x slower |
-| watch (48 KB)              | 0.8 ms | 1.1 ms | 0.4 ms  | 1.9x slower | 2.7x slower |
-| project (19 KB)            | 0.3 ms | 0.4 ms | 0.2 ms  | 1.9x slower | 2.7x slower |
+| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
+| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
+| swift-protobuf (257 KB)    | 4.1 ms     | 5.2 ms     | 12.0 ms       | **2.9x**     | **2.3x**     |
+| Cocoa-Application (166 KB) | 3.3 ms     | 4.5 ms     | 2.7 ms        | 1.2x slower  | 1.7x slower  |
+| AFNetworking (99 KB)       | 1.6 ms     | 2.3 ms     | 1.8 ms        | **1.1x**     | 1.3x slower  |
+| watch (48 KB)              | 0.8 ms     | 1.1 ms     | 0.4 ms        | 1.9x slower  | 2.7x slower  |
+| project (19 KB)            | 0.3 ms     | 0.4 ms     | 0.2 ms        | 1.9x slower  | 2.7x slower  |
 
 > [!NOTE]
-> TypeScript wins `build()` on smaller files because it operates directly on native JS objects with zero serialization cost. Rust pays a fixed overhead for JSON deserialization (~0.1 ms) which dominates on small inputs. On large files (>100 KB) where actual serialization work dominates, Rust wins.
->
-> In practice this doesn't matter much — the parse speedup more than compensates, as the round-trip tables below show.
+> TypeScript wins `build()` on smaller files because it operates directly on native JS objects with zero serialization cost. On large files (>100 KB) where actual serialization work dominates, Rust wins.
 
 ### Round-Trip (parse + build)
 
-| Fixture                    | WASM   | napi   | TS      | WASM vs TS | napi vs TS |
-| -------------------------- | ------ | ------ | ------- | ---------- | ---------- |
-| swift-protobuf (257 KB)    | 7.0 ms | 9.0 ms | 55.9 ms | **8.0x**   | **6.2x**   |
-| Cocoa-Application (166 KB) | 5.7 ms | 7.7 ms | 19.9 ms | **3.5x**   | **2.6x**   |
-| AFNetworking (99 KB)       | 2.9 ms | 4.0 ms | 8.4 ms  | **2.9x**   | **2.1x**   |
-| watch (48 KB)              | 1.5 ms | 2.0 ms | 2.5 ms  | **1.7x**   | **1.3x**   |
-| project (19 KB)            | 0.6 ms | 0.8 ms | 1.0 ms  | **1.7x**   | **1.3x**   |
+| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
+| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
+| swift-protobuf (257 KB)    | 7.0 ms     | 9.0 ms     | 55.9 ms       | **8.0x**     | **6.2x**     |
+| Cocoa-Application (166 KB) | 5.7 ms     | 7.7 ms     | 19.9 ms       | **3.5x**     | **2.6x**     |
+| AFNetworking (99 KB)       | 2.9 ms     | 4.0 ms     | 8.4 ms        | **2.9x**     | **2.1x**     |
+| watch (48 KB)              | 1.5 ms     | 2.0 ms     | 2.5 ms        | **1.7x**     | **1.3x**     |
+| project (19 KB)            | 0.6 ms     | 0.8 ms     | 1.0 ms        | **1.7x**     | **1.3x**     |
 
 ### Round-Trip (parseAndBuild — zero marshalling)
 
-| Fixture                    | WASM   | napi   | TS      | WASM vs TS | napi vs TS |
-| -------------------------- | ------ | ------ | ------- | ---------- | ---------- |
-| swift-protobuf (257 KB)    | 4.8 ms | 4.4 ms | 62.7 ms | **13.1x**  | **14.2x**  |
-| Cocoa-Application (166 KB) | 3.7 ms | 3.7 ms | 22.4 ms | **6.0x**   | **6.1x**   |
-| AFNetworking (99 KB)       | 1.9 ms | 1.8 ms | 9.2 ms  | **4.7x**   | **5.1x**   |
-| watch (48 KB)              | 0.9 ms | 0.9 ms | 2.8 ms  | **3.0x**   | **3.1x**   |
-| project (19 KB)            | 0.4 ms | 0.3 ms | 1.0 ms  | **2.8x**   | **2.9x**   |
+| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
+| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
+| swift-protobuf (257 KB)    | 4.8 ms     | 4.4 ms     | 62.7 ms       | **13.1x**    | **14.2x**    |
+| Cocoa-Application (166 KB) | 3.7 ms     | 3.7 ms     | 22.4 ms       | **6.0x**     | **6.1x**     |
+| AFNetworking (99 KB)       | 1.9 ms     | 1.8 ms     | 9.2 ms        | **4.7x**     | **5.1x**     |
+| watch (48 KB)              | 0.9 ms     | 0.9 ms     | 2.8 ms        | **3.0x**     | **3.1x**     |
+| project (19 KB)            | 0.4 ms     | 0.3 ms     | 1.0 ms        | **2.8x**     | **2.9x**     |
 
 ### Package Size
 
-|              | WASM   | napi   | TS      |
-| ------------ | ------ | ------ | ------- |
-| Uncompressed | 245 KB | 559 KB | 1.1 MB  |
-| Gzipped      | 96 KB  | 270 KB | ~400 KB |
-
-Run benchmarks yourself:
-
-```bash
-make bench          # all benchmarks
-make bench-rust     # pure Rust (no JS overhead)
-make bench-js       # napi vs TypeScript
-make bench-wasm     # WASM vs napi vs TypeScript
-```
-
-## Choosing the Right Package
-
-| Environment                        | Package                | Notes                                    |
-| ---------------------------------- | ---------------------- | ---------------------------------------- |
-| Node.js                            | `@xcodekit/xcode`      | Fastest. Native binary per platform.     |
-| Browser / Deno / Workers           | `@xcodekit/xcode-wasm` | Universal. 96 KB gzipped.                |
-| Node.js without native compilation | `@xcodekit/xcode-wasm` | Works everywhere, no build tools needed. |
+|              | xcode-wasm | xcode-node | @bacons/xcode |
+| ------------ | ---------- | ---------- | ------------- |
+| Uncompressed | ~370 KB    | 559 KB     | 1.1 MB        |
+| Gzipped      | ~96 KB     | 270 KB     | ~400 KB       |
 
 ## Compatibility
 
@@ -281,11 +234,10 @@ make bench-wasm     # WASM vs napi vs TypeScript
 - All escape sequences: standard (`\n`, `\t`, etc.), Unicode (`\Uxxxx`), octal, NeXTSTEP (128 entries)
 - Xcode 16+ file system synchronized groups
 - Swift Package Manager references
-- 119 tests (62 Rust + 38 napi JS + 19 WASM JS)
 
 ## Supported Platforms
 
-### napi (`@xcodekit/xcode`)
+### Native (`@xcodekit/xcode-node`)
 
 | Platform | Architecture                       |
 | -------- | ---------------------------------- |
@@ -295,61 +247,54 @@ make bench-wasm     # WASM vs napi vs TypeScript
 
 ### WASM (`@xcodekit/xcode-wasm`)
 
-Any environment that supports WebAssembly — browsers, Node.js, Deno, Bun, Cloudflare Workers, etc.
+Any environment that supports WebAssembly — Node.js, Bun, Deno, Cloudflare Workers, browsers, etc. WASM binary is inlined as base64 — no file resolution needed, works in single-file bundles.
 
 ## Development
 
 ```bash
-# Prerequisites
-# - Rust toolchain (cargo)
-# - Node.js >= 18
-# - wasm-pack (for WASM builds)
+# Prerequisites: Rust toolchain, Node.js >= 18, wasm-pack, binaryen
 
-# Install dependencies
 npm install
 
-# Run tests
-make test           # all tests (Rust + napi JS + WASM JS)
-make test-rust      # Rust tests only (fast, no Node needed)
-make test-js        # napi JS tests (builds debug binary first)
-make test-wasm      # WASM JS tests (requires: make build-wasm)
+# Tests
+make test           # all (Rust + native JS + WASM JS)
+make test-rust      # Rust unit + integration tests
+make test-js        # native napi tests (vitest)
+make test-wasm      # WASM tests (vitest)
 
 # Build
-make build          # napi release build
-make build-debug    # napi debug build (faster compilation)
-make build-wasm     # WASM build (web + node + bundler targets)
+make build          # native napi release
+make build-debug    # native napi debug (faster compilation)
+make build-wasm     # WASM → pkg/xcode-wasm/
+make build-node     # native → pkg/xcode-node/
+make build-all      # all packages
 
 # Other
-make check          # Type-check all targets without building
-make fmt            # cargo fmt
+make check          # type-check all targets
+make fmt            # cargo fmt + prettier
 make lint           # cargo clippy
-make clean          # Remove all artifacts
+make bench          # all benchmarks
+make clean          # remove all artifacts
 ```
 
 ### Project Structure
 
 ```
-src/
-  lib.rs                  # napi + wasm exports
-  parser/
-    lexer.rs              # Fast byte-scanning tokenizer
-    parser.rs             # Recursive descent parser → PlistValue
-    escape.rs             # String unescape (standard, Unicode, octal, NeXTSTEP)
-  writer/
-    serializer.rs         # PlistValue → .pbxproj (section sorting, inline formatting)
-    comments.rs           # UUID → inline comment generation
-    quotes.rs             # String quoting/escaping
-  types/
-    plist.rs              # PlistValue enum (String, Integer, Float, Data, Object, Array)
-    isa.rs                # ISA enum (29 variants)
-    constants.rs          # File type mappings, SDK versions, default build settings
-  project/
-    xcode_project.rs      # High-level project container
-    uuid.rs               # Deterministic MD5-based UUID generation
-    paths.rs              # sourceTree path resolution
-    build_settings.rs     # $(VARIABLE:transform) resolver
-  objects/
-    mod.rs                # PbxObject + PbxObjectExt trait
+src/                          # Rust source (parser, writer, project API)
+tests/
+  integration_tests.rs        # Rust integration tests
+  node.test.mjs               # Native napi JS tests (vitest)
+  wasm.test.mjs               # WASM JS tests (vitest)
+  fixtures/                   # 20 real-world .pbxproj files
+npm/                          # Publishable package metadata
+  xcode/                      # @xcodekit/xcode (auto-selector facade)
+  xcode-node/                 # @xcodekit/xcode-node (native napi)
+    platforms/                # Platform binary packages (darwin-arm64, etc.)
+  xcode-wasm/                 # @xcodekit/xcode-wasm (WASM wrapper + types)
+scripts/                      # Build scripts
+  build-node-pkg.sh           # Assembles pkg/xcode-node/
+  build-wasm-pkg.sh           # Assembles pkg/xcode-wasm/ (wasm-opt, base64 inline)
+pkg/                          # Generated build output (gitignored)
 ```
 
 ## License
