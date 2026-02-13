@@ -12,6 +12,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 
 cp npm/xcode-node/package.json "$OUT/package.json"
+cp README.md "$OUT/README.md"
 cp index.js "$OUT/index.js"
 cp index.d.ts "$OUT/index.d.ts"
 cp types.d.ts "$OUT/types.d.ts"

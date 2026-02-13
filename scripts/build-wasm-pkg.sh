@@ -55,6 +55,7 @@ node -e "
 # ── 4. Assemble package ─────────────────────────────────────────────────────
 
 cp npm/xcode-wasm/package.json "$OUT/package.json"
+cp README.md "$OUT/README.md"
 cp "$SRC/xcode.js" "$OUT/xcode.js"
 cp "$SRC/xcode.d.ts" "$OUT/xcode.d.ts"
 cp "$SRC/xcode_bg.wasm.d.ts" "$OUT/xcode_bg.wasm.d.ts"

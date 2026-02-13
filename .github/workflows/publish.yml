@@ -145,7 +145,7 @@ jobs:
 
       # Publish @xcodekit/xcode (static facade — copy from npm/ to pkg/)
       - name: Publish @xcodekit/xcode
-        run: cp -r npm/xcode pkg/xcode && cd pkg/xcode && npm publish --access public
+        run: cp -r npm/xcode pkg/xcode && cp README.md pkg/xcode/README.md && cd pkg/xcode && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
