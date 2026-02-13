@@ -1,2 +1,2 @@
 # Force LF line endings for pbxproj fixtures (must match exactly for round-trip tests)
-__test__/fixtures/*.pbxproj text eol=lf
+tests/fixtures/*.pbxproj text eol=lf
