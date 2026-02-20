@@ -1062,6 +1062,26 @@ impl XcodeProject {
         Some(sync_group_uuid)
     }
 
+    /// Get the `path` of each `PBXFileSystemSynchronizedRootGroup` linked to a
+    /// target's `fileSystemSynchronizedGroups` array.
+    /// Returns `[]` if the target has no sync groups (pre-Xcode 16 projects).
+    pub fn get_target_sync_group_paths(&self, target_uuid: &str) -> Vec<String> {
+        let target = match self.get_object(target_uuid) {
+            Some(t) => t,
+            None => return vec![],
+        };
+        let group_uuids = match target.props.get("fileSystemSynchronizedGroups") {
+            Some(PlistValue::Array(arr)) => arr,
+            _ => return vec![],
+        };
+        group_uuids
+            .iter()
+            .filter_map(|v| v.as_str())
+            .filter_map(|uuid| self.get_object(uuid))
+            .filter_map(|obj| obj.get_str("path").map(|s| s.to_string()))
+            .collect()
+    }
+
     /// Remove a build setting from all configurations for a target.
     pub fn remove_build_setting(&mut self, target_uuid: &str, key: &str) -> bool {
         let target = match self.get_object(target_uuid) {

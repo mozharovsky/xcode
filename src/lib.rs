@@ -191,6 +191,11 @@ mod wasm_bindings {
             self.inner.add_file_system_sync_group(target_uuid, path)
         }
 
+        #[wasm_bindgen(js_name = "getTargetSyncGroupPaths")]
+        pub fn get_target_sync_group_paths(&self, target_uuid: &str) -> Vec<String> {
+            self.inner.get_target_sync_group_paths(target_uuid)
+        }
+
         // ── Generic access ───────────────────────────────────────
 
         #[wasm_bindgen(js_name = "getObjectProperty")]
@@ -473,6 +478,12 @@ mod napi_bindings {
         #[napi]
         pub fn add_file_system_sync_group(&mut self, target_uuid: String, path: String) -> Option<String> {
             self.inner.add_file_system_sync_group(&target_uuid, &path)
+        }
+
+        /// Get the on-disk paths of a target's file system sync groups.
+        #[napi]
+        pub fn get_target_sync_group_paths(&self, target_uuid: String) -> Vec<String> {
+            self.inner.get_target_sync_group_paths(&target_uuid)
         }
 
         // ── Generic property access ──────────────────────────────
