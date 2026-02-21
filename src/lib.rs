@@ -186,6 +186,11 @@ mod wasm_bindings {
             self.inner.add_dependency(target_uuid, depends_on)
         }
 
+        #[wasm_bindgen(js_name = "getEmbeddedTargets")]
+        pub fn get_embedded_targets(&self, target_uuid: &str) -> Vec<String> {
+            self.inner.get_embedded_targets(target_uuid)
+        }
+
         #[wasm_bindgen(js_name = "embedExtension")]
         pub fn embed_extension(&mut self, host: &str, extension: &str) -> Option<String> {
             self.inner.embed_extension(host, extension)
@@ -468,6 +473,12 @@ mod napi_bindings {
         #[napi]
         pub fn add_dependency(&mut self, target_uuid: String, depends_on_uuid: String) -> Option<String> {
             self.inner.add_dependency(&target_uuid, &depends_on_uuid)
+        }
+
+        /// Get UUIDs of targets embedded in the given target via PBXCopyFilesBuildPhase.
+        #[napi]
+        pub fn get_embedded_targets(&self, target_uuid: String) -> Vec<String> {
+            self.inner.get_embedded_targets(&target_uuid)
         }
 
         /// Embed an extension target into a host app target.

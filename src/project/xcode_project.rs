@@ -954,6 +954,61 @@ impl XcodeProject {
 
     // ── Extension embedding ────────────────────────────────────────
 
+    /// Returns UUIDs of targets whose products are embedded in the given target
+    /// via PBXCopyFilesBuildPhase (e.g. "Embed Foundation Extensions", "Embed Frameworks").
+    ///
+    /// Walks: target.buildPhases -> PBXCopyFilesBuildPhase -> files -> PBXBuildFile.fileRef
+    ///        -> matches against all targets' productReference to resolve target UUIDs.
+    pub fn get_embedded_targets(&self, target_uuid: &str) -> Vec<String> {
+        let target = match self.get_object(target_uuid) {
+            Some(t) => t,
+            None => return vec![],
+        };
+        let phases = match target.get_array("buildPhases") {
+            Some(p) => p,
+            None => return vec![],
+        };
+
+        let mut embedded_file_refs: Vec<&str> = Vec::new();
+        for phase_val in phases {
+            let phase_uuid = match phase_val.as_str() {
+                Some(u) => u,
+                None => continue,
+            };
+            let phase = match self.get_object(phase_uuid) {
+                Some(p) if p.isa == "PBXCopyFilesBuildPhase" => p,
+                _ => continue,
+            };
+            let files = match phase.get_array("files") {
+                Some(f) => f,
+                None => continue,
+            };
+            for file_val in files {
+                if let Some(build_file_uuid) = file_val.as_str() {
+                    if let Some(build_file) = self.get_object(build_file_uuid) {
+                        if let Some(file_ref) = build_file.get_str("fileRef") {
+                            embedded_file_refs.push(file_ref);
+                        }
+                    }
+                }
+            }
+        }
+
+        if embedded_file_refs.is_empty() {
+            return vec![];
+        }
+
+        let mut result = Vec::new();
+        for t in self.native_targets() {
+            if let Some(product_ref) = t.get_str("productReference") {
+                if embedded_file_refs.contains(&product_ref) {
+                    result.push(t.uuid.clone());
+                }
+            }
+        }
+        result
+    }
+
     /// Embed an extension target into a host app target.
     ///
     /// Creates a PBXCopyFilesBuildPhase with the correct dstSubfolderSpec
