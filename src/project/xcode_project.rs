@@ -1295,6 +1295,88 @@ mod tests {
     }
 
     #[test]
+    fn test_get_target_product_type() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let project = XcodeProject::from_plist(&content).unwrap();
+
+        let target = project
+            .find_target_by_product_type("com.apple.product-type.application")
+            .expect("should find app target");
+        assert_eq!(
+            project.get_target_product_type(&target.uuid),
+            Some("com.apple.product-type.application".to_string())
+        );
+
+        assert_eq!(project.get_target_product_type("nonexistent-uuid"), None);
+    }
+
+    #[test]
+    fn test_get_target_sync_group_paths() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        let target_uuid = project.native_targets()[0].uuid.clone();
+
+        // Before adding any sync groups, should return empty
+        assert!(project.get_target_sync_group_paths(&target_uuid).is_empty());
+
+        // Add sync groups and verify they're returned
+        project.add_file_system_sync_group(&target_uuid, "MyApp");
+        project.add_file_system_sync_group(&target_uuid, "MyAppTests");
+
+        let paths = project.get_target_sync_group_paths(&target_uuid);
+        assert_eq!(paths, vec!["MyApp".to_string(), "MyAppTests".to_string()]);
+
+        // Nonexistent target returns empty
+        assert!(project.get_target_sync_group_paths("nonexistent-uuid").is_empty());
+    }
+
+    #[test]
+    fn test_get_embedded_targets() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        let host_uuid = project.native_targets()[0].uuid.clone();
+
+        // No embedded targets initially
+        assert!(project.get_embedded_targets(&host_uuid).is_empty());
+
+        // Create an extension target and embed it
+        let ext_uuid = project
+            .create_native_target(
+                "WidgetExtension",
+                "com.apple.product-type.app-extension",
+                "com.test.widget",
+            )
+            .unwrap();
+        project.embed_extension(&host_uuid, &ext_uuid);
+
+        let embedded = project.get_embedded_targets(&host_uuid);
+        assert_eq!(embedded, vec![ext_uuid.clone()]);
+
+        // Embed a second extension
+        let ext2_uuid = project
+            .create_native_target(
+                "IntentExtension",
+                "com.apple.product-type.app-extension",
+                "com.test.intent",
+            )
+            .unwrap();
+        project.embed_extension(&host_uuid, &ext2_uuid);
+
+        let embedded = project.get_embedded_targets(&host_uuid);
+        assert_eq!(embedded.len(), 2);
+        assert!(embedded.contains(&ext_uuid));
+        assert!(embedded.contains(&ext2_uuid));
+
+        // Nonexistent target returns empty
+        assert!(project.get_embedded_targets("nonexistent-uuid").is_empty());
+    }
+
+    #[test]
     fn test_malformed_project_still_parses() {
         // Malformed projects should parse and round-trip without crashing
         let path = Path::new(FIXTURES_DIR).join("malformed.pbxproj");
