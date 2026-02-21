@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "Parse, manipulate, and serialize Xcode .pbxproj files",
   "type": "module",
   "exports": {
@@ -16,10 +16,10 @@
     "index.d.ts"
   ],
   "dependencies": {
-    "@xcodekit/xcode-wasm": "0.6.10"
+    "@xcodekit/xcode-wasm": "0.6.11"
   },
   "optionalDependencies": {
-    "@xcodekit/xcode-node": "0.6.10"
+    "@xcodekit/xcode-node": "0.6.11"
   },
   "repository": {
     "type": "git",

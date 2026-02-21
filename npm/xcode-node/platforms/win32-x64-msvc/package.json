@@ -1,6 +1,6 @@
 {
   "name": "@xcodekit/xcode-win32-x64-msvc",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "os": ["win32"],
   "cpu": ["x64"],
   "main": "xcode.win32-x64-msvc.node",
