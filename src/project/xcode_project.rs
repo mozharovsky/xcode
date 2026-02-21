@@ -862,6 +862,13 @@ impl XcodeProject {
         self.get_object(target_uuid)?.get_str("name").map(|s| s.to_string())
     }
 
+    /// Get the product type of a target (e.g. `com.apple.product-type.application`).
+    pub fn get_target_product_type(&self, target_uuid: &str) -> Option<String> {
+        self.get_object(target_uuid)?
+            .get_str("productType")
+            .map(|s| s.to_string())
+    }
+
     /// Set the name and productName of a target.
     pub fn set_target_name(&mut self, target_uuid: &str, name: &str) -> bool {
         if let Some(target) = self.get_object_mut(target_uuid) {

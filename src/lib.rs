@@ -104,6 +104,11 @@ mod wasm_bindings {
             self.inner.get_target_name(target_uuid)
         }
 
+        #[wasm_bindgen(js_name = "getTargetProductType")]
+        pub fn get_target_product_type(&self, target_uuid: &str) -> Option<String> {
+            self.inner.get_target_product_type(target_uuid)
+        }
+
         #[wasm_bindgen(js_name = "setTargetName")]
         pub fn set_target_name(&mut self, target_uuid: &str, name: &str) -> bool {
             self.inner.set_target_name(target_uuid, name)
@@ -510,6 +515,12 @@ mod napi_bindings {
         #[napi]
         pub fn get_target_name(&self, target_uuid: String) -> Option<String> {
             self.inner.get_target_name(&target_uuid)
+        }
+
+        /// Get the product type of a target.
+        #[napi]
+        pub fn get_target_product_type(&self, target_uuid: String) -> Option<String> {
+            self.inner.get_target_product_type(&target_uuid)
         }
 
         /// Set the name and productName of a target.
