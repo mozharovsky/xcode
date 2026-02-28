@@ -13,6 +13,12 @@ export declare function build(project: object): string;
 /** Parse and immediately re-serialize. Stays in WASM, zero marshalling. */
 export declare function parseAndBuild(text: string): string;
 
+/** Parse a plist string (.entitlements, Info.plist, etc.) into a JS object. Auto-detects XML vs binary. */
+export declare function parsePlist(content: string): any;
+
+/** Serialize a JS object to an XML plist string. */
+export declare function buildPlist(obj: object): string;
+
 export declare class XcodeProject extends BaseXcodeProject {
   /** Open and parse a .pbxproj file from disk. */
   static open(filePath: string): XcodeProject;
