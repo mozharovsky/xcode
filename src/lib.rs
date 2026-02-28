@@ -4,6 +4,7 @@ extern crate napi_derive;
 
 pub mod objects;
 pub mod parser;
+pub mod plist_xml;
 pub mod project;
 pub mod types;
 pub mod writer;
@@ -39,6 +40,21 @@ mod wasm_bindings {
     pub fn parse_and_build(text: &str) -> Result<String, JsError> {
         let plist = crate::parser::parse(text).map_err(|e| JsError::new(&e))?;
         Ok(crate::writer::serializer::build(&plist))
+    }
+
+    /// Parse a plist string (`.entitlements`, `Info.plist`, etc.) into a JS object.
+    /// Auto-detects XML vs binary format.
+    #[wasm_bindgen(js_name = "parsePlist")]
+    pub fn parse_plist(content: &str) -> Result<JsValue, JsError> {
+        let value = crate::plist_xml::parse_plist(content).map_err(|e| JsError::new(&e))?;
+        value.serialize(&serializer()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Serialize a JS object to an XML plist string.
+    #[wasm_bindgen(js_name = "buildPlist")]
+    pub fn build_plist(obj: JsValue) -> Result<String, JsError> {
+        let value: serde_json::Value = serde_wasm_bindgen::from_value(obj).map_err(|e| JsError::new(&e.to_string()))?;
+        crate::plist_xml::build_plist(&value).map_err(|e| JsError::new(&e))
     }
 
     /// High-level project manipulation — stays in WASM memory.
@@ -284,6 +300,19 @@ mod napi_bindings {
     pub fn parse_and_build(text: String) -> Result<String> {
         let plist = crate::parser::parse(&text).map_err(|e| Error::from_reason(e))?;
         Ok(crate::writer::serializer::build(&plist))
+    }
+
+    /// Parse a plist string (`.entitlements`, `Info.plist`, etc.) into a JSON-compatible object.
+    /// Auto-detects XML vs binary format.
+    #[napi(js_name = "parsePlist")]
+    pub fn parse_plist(content: String) -> Result<serde_json::Value> {
+        crate::plist_xml::parse_plist(&content).map_err(|e| Error::from_reason(e))
+    }
+
+    /// Serialize a JSON object to an XML plist string.
+    #[napi(js_name = "buildPlist")]
+    pub fn build_plist(obj: serde_json::Value) -> Result<String> {
+        crate::plist_xml::build_plist(&obj).map_err(|e| Error::from_reason(e))
     }
 
     /// XcodeProject class for high-level API.
