@@ -4,4 +4,4 @@
  * Uses the WASM build directly. No native addon, no platform binaries.
  */
 
-export { XcodeProject, build, parse, parseAndBuild } from "@xcodekit/xcode-wasm";
+export { XcodeProject, build, parse, parseAndBuild, parsePlist, buildPlist } from "@xcodekit/xcode-wasm";

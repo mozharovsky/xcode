@@ -15,4 +15,4 @@ try {
   mod = await import("@xcodekit/xcode-wasm");
 }
 
-export const { parse, build, parseAndBuild, XcodeProject } = mod;
+export const { parse, build, parseAndBuild, parsePlist, buildPlist, XcodeProject } = mod;

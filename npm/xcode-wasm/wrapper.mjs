@@ -72,3 +72,16 @@ export const build = wasm.build;
  * @type {(text: string) => string}
  */
 export const parseAndBuild = wasm.parseAndBuild;
+
+/**
+ * Parse a plist string (.entitlements, Info.plist, etc.) into a JS object.
+ * Auto-detects XML vs binary format.
+ * @type {(content: string) => any}
+ */
+export const parsePlist = wasm.parsePlist;
+
+/**
+ * Serialize a JS object to an XML plist string.
+ * @type {(obj: object) => string}
+ */
+export const buildPlist = wasm.buildPlist;
