@@ -123,9 +123,8 @@ mod fixture_tests {
     fn test_numeric_object_keys_are_strings() {
         let input = "{ 123 = abc; 456 = { 789 = def; }; }";
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("123").and_then(|v| v.as_str()), Some("abc"));
-        let inner = obj.get("456").unwrap().as_object().unwrap();
+        assert_eq!(result.get("123").and_then(|v| v.as_str()), Some("abc"));
+        let inner = result.get("456").unwrap();
         assert_eq!(inner.get("789").and_then(|v| v.as_str()), Some("def"));
     }
 }
@@ -137,10 +136,7 @@ mod unicode_tests {
     fn test_unicode_escape_sequences() {
         let input = r#"{ testKey = "\U0041\U0042\U0043"; }"#;
         let result = parse(input).unwrap();
-        assert_eq!(
-            result.as_object().unwrap().get("testKey").unwrap().as_str(),
-            Some("ABC")
-        );
+        assert_eq!(result.get("testKey").and_then(|v| v.as_str()), Some("ABC"));
     }
 
     #[test]
@@ -152,11 +148,10 @@ mod unicode_tests {
             backslash = "path\\to\\file";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("newline").unwrap().as_str(), Some("line1\nline2"));
-        assert_eq!(obj.get("tab").unwrap().as_str(), Some("col1\tcol2"));
-        assert_eq!(obj.get("quote").unwrap().as_str(), Some("say \"hello\""));
-        assert_eq!(obj.get("backslash").unwrap().as_str(), Some("path\\to\\file"));
+        assert_eq!(result.get("newline").and_then(|v| v.as_str()), Some("line1\nline2"));
+        assert_eq!(result.get("tab").and_then(|v| v.as_str()), Some("col1\tcol2"));
+        assert_eq!(result.get("quote").and_then(|v| v.as_str()), Some("say \"hello\""));
+        assert_eq!(result.get("backslash").and_then(|v| v.as_str()), Some("path\\to\\file"));
     }
 
     #[test]
@@ -169,12 +164,11 @@ mod unicode_tests {
             vertical = "\v";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("bell").unwrap().as_str(), Some("\x07"));
-        assert_eq!(obj.get("backspace").unwrap().as_str(), Some("\x08"));
-        assert_eq!(obj.get("formfeed").unwrap().as_str(), Some("\x0C"));
-        assert_eq!(obj.get("carriage").unwrap().as_str(), Some("\r"));
-        assert_eq!(obj.get("vertical").unwrap().as_str(), Some("\x0B"));
+        assert_eq!(result.get("bell").and_then(|v| v.as_str()), Some("\x07"));
+        assert_eq!(result.get("backspace").and_then(|v| v.as_str()), Some("\x08"));
+        assert_eq!(result.get("formfeed").and_then(|v| v.as_str()), Some("\x0C"));
+        assert_eq!(result.get("carriage").and_then(|v| v.as_str()), Some("\r"));
+        assert_eq!(result.get("vertical").and_then(|v| v.as_str()), Some("\x0B"));
     }
 
     #[test]
@@ -184,9 +178,8 @@ mod unicode_tests {
             partialUnicode = "\U123";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("invalidUnicode").unwrap().as_str(), Some("\\UZZZZ"));
-        assert_eq!(obj.get("partialUnicode").unwrap().as_str(), Some("\\U123"));
+        assert_eq!(result.get("invalidUnicode").and_then(|v| v.as_str()), Some("\\UZZZZ"));
+        assert_eq!(result.get("partialUnicode").and_then(|v| v.as_str()), Some("\\U123"));
     }
 
     #[test]
@@ -200,13 +193,12 @@ mod unicode_tests {
             emDash = "\320";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("nonBreakSpace").unwrap().as_str(), Some("\u{00a0}"));
-        assert_eq!(obj.get("copyright").unwrap().as_str(), Some("\u{00a9}"));
-        assert_eq!(obj.get("registeredSign").unwrap().as_str(), Some("\u{00ae}"));
-        assert_eq!(obj.get("bullet").unwrap().as_str(), Some("\u{2022}"));
-        assert_eq!(obj.get("enDash").unwrap().as_str(), Some("\u{2013}"));
-        assert_eq!(obj.get("emDash").unwrap().as_str(), Some("\u{2014}"));
+        assert_eq!(result.get("nonBreakSpace").and_then(|v| v.as_str()), Some("\u{00a0}"));
+        assert_eq!(result.get("copyright").and_then(|v| v.as_str()), Some("\u{00a9}"));
+        assert_eq!(result.get("registeredSign").and_then(|v| v.as_str()), Some("\u{00ae}"));
+        assert_eq!(result.get("bullet").and_then(|v| v.as_str()), Some("\u{2022}"));
+        assert_eq!(result.get("enDash").and_then(|v| v.as_str()), Some("\u{2013}"));
+        assert_eq!(result.get("emDash").and_then(|v| v.as_str()), Some("\u{2014}"));
     }
 
     #[test]
@@ -220,13 +212,12 @@ mod unicode_tests {
             oSlash = "\351";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("aGrave").unwrap().as_str(), Some("\u{00c0}"));
-        assert_eq!(obj.get("aAcute").unwrap().as_str(), Some("\u{00c1}"));
-        assert_eq!(obj.get("aTilde").unwrap().as_str(), Some("\u{00c3}"));
-        assert_eq!(obj.get("ccedilla").unwrap().as_str(), Some("\u{00c7}"));
-        assert_eq!(obj.get("eGrave").unwrap().as_str(), Some("\u{00c8}"));
-        assert_eq!(obj.get("oSlash").unwrap().as_str(), Some("\u{00d8}"));
+        assert_eq!(result.get("aGrave").and_then(|v| v.as_str()), Some("\u{00c0}"));
+        assert_eq!(result.get("aAcute").and_then(|v| v.as_str()), Some("\u{00c1}"));
+        assert_eq!(result.get("aTilde").and_then(|v| v.as_str()), Some("\u{00c3}"));
+        assert_eq!(result.get("ccedilla").and_then(|v| v.as_str()), Some("\u{00c7}"));
+        assert_eq!(result.get("eGrave").and_then(|v| v.as_str()), Some("\u{00c8}"));
+        assert_eq!(result.get("oSlash").and_then(|v| v.as_str()), Some("\u{00d8}"));
     }
 
     #[test]
@@ -239,12 +230,11 @@ mod unicode_tests {
             ellipsis = "\274";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("fiLigature").unwrap().as_str(), Some("\u{fb01}"));
-        assert_eq!(obj.get("flLigature").unwrap().as_str(), Some("\u{fb02}"));
-        assert_eq!(obj.get("fractionSlash").unwrap().as_str(), Some("\u{2044}"));
-        assert_eq!(obj.get("fHook").unwrap().as_str(), Some("\u{0192}"));
-        assert_eq!(obj.get("ellipsis").unwrap().as_str(), Some("\u{2026}"));
+        assert_eq!(result.get("fiLigature").and_then(|v| v.as_str()), Some("\u{fb01}"));
+        assert_eq!(result.get("flLigature").and_then(|v| v.as_str()), Some("\u{fb02}"));
+        assert_eq!(result.get("fractionSlash").and_then(|v| v.as_str()), Some("\u{2044}"));
+        assert_eq!(result.get("fHook").and_then(|v| v.as_str()), Some("\u{0192}"));
+        assert_eq!(result.get("ellipsis").and_then(|v| v.as_str()), Some("\u{2026}"));
     }
 
     #[test]
@@ -254,9 +244,8 @@ mod unicode_tests {
             notdef2 = "\377";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("notdef1").unwrap().as_str(), Some("\u{fffd}"));
-        assert_eq!(obj.get("notdef2").unwrap().as_str(), Some("\u{fffd}"));
+        assert_eq!(result.get("notdef1").and_then(|v| v.as_str()), Some("\u{fffd}"));
+        assert_eq!(result.get("notdef2").and_then(|v| v.as_str()), Some("\u{fffd}"));
     }
 
     #[test]
@@ -267,10 +256,9 @@ mod unicode_tests {
             seven = "\7";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("null").unwrap().as_str(), Some("\x00"));
-        assert_eq!(obj.get("one").unwrap().as_str(), Some("\x01"));
-        assert_eq!(obj.get("seven").unwrap().as_str(), Some("\x07"));
+        assert_eq!(result.get("null").and_then(|v| v.as_str()), Some("\x00"));
+        assert_eq!(result.get("one").and_then(|v| v.as_str()), Some("\x01"));
+        assert_eq!(result.get("seven").and_then(|v| v.as_str()), Some("\x07"));
     }
 
     #[test]
@@ -281,10 +269,9 @@ mod unicode_tests {
             seventySeven = "\115";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("ten").unwrap().as_str(), Some("\x0a"));
-        assert_eq!(obj.get("twentySeven").unwrap().as_str(), Some("\x1b"));
-        assert_eq!(obj.get("seventySeven").unwrap().as_str(), Some("\x4d"));
+        assert_eq!(result.get("ten").and_then(|v| v.as_str()), Some("\x0a"));
+        assert_eq!(result.get("twentySeven").and_then(|v| v.as_str()), Some("\x1b"));
+        assert_eq!(result.get("seventySeven").and_then(|v| v.as_str()), Some("\x4d"));
     }
 
     #[test]
@@ -295,10 +282,9 @@ mod unicode_tests {
             lowRange = "\077";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("max").unwrap().as_str(), Some("\u{fffd}"));
-        assert_eq!(obj.get("middleRange").unwrap().as_str(), Some("\x7f"));
-        assert_eq!(obj.get("lowRange").unwrap().as_str(), Some("\x3f"));
+        assert_eq!(result.get("max").and_then(|v| v.as_str()), Some("\u{fffd}"));
+        assert_eq!(result.get("middleRange").and_then(|v| v.as_str()), Some("\x7f"));
+        assert_eq!(result.get("lowRange").and_then(|v| v.as_str()), Some("\x3f"));
     }
 
     #[test]
@@ -308,9 +294,8 @@ mod unicode_tests {
             test2 = "\777";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("test1").unwrap().as_str(), Some("S4"));
-        assert_eq!(obj.get("test2").unwrap().as_str(), Some("ǿ"));
+        assert_eq!(result.get("test1").and_then(|v| v.as_str()), Some("S4"));
+        assert_eq!(result.get("test2").and_then(|v| v.as_str()), Some("ǿ"));
     }
 
     #[test]
@@ -320,9 +305,8 @@ mod unicode_tests {
             empty2 = '';
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("empty1").unwrap().as_str(), Some(""));
-        assert_eq!(obj.get("empty2").unwrap().as_str(), Some(""));
+        assert_eq!(result.get("empty1").and_then(|v| v.as_str()), Some(""));
+        assert_eq!(result.get("empty2").and_then(|v| v.as_str()), Some(""));
     }
 
     #[test]
@@ -334,11 +318,10 @@ mod unicode_tests {
             singleInDouble = "it's working";
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("doubleQuoted").unwrap().as_str(), Some("double"));
-        assert_eq!(obj.get("singleQuoted").unwrap().as_str(), Some("single"));
-        assert_eq!(obj.get("doubleInSingle").unwrap().as_str(), Some("say \"hello\""));
-        assert_eq!(obj.get("singleInDouble").unwrap().as_str(), Some("it's working"));
+        assert_eq!(result.get("doubleQuoted").and_then(|v| v.as_str()), Some("double"));
+        assert_eq!(result.get("singleQuoted").and_then(|v| v.as_str()), Some("single"));
+        assert_eq!(result.get("doubleInSingle").and_then(|v| v.as_str()), Some("say \"hello\""));
+        assert_eq!(result.get("singleInDouble").and_then(|v| v.as_str()), Some("it's working"));
     }
 
     #[test]
@@ -352,22 +335,20 @@ mod unicode_tests {
             withUnderscores = with_underscores;
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("unquoted").unwrap().as_str(), Some("value"));
-        assert_eq!(obj.get("withNumbers").unwrap().as_str(), Some("value123"));
-        assert_eq!(obj.get("withPath").unwrap().as_str(), Some("path/to/file"));
-        assert_eq!(obj.get("withDots").unwrap().as_str(), Some("com.example.app"));
-        assert_eq!(obj.get("withHyphens").unwrap().as_str(), Some("with-hyphens"));
-        assert_eq!(obj.get("withUnderscores").unwrap().as_str(), Some("with_underscores"));
+        assert_eq!(result.get("unquoted").and_then(|v| v.as_str()), Some("value"));
+        assert_eq!(result.get("withNumbers").and_then(|v| v.as_str()), Some("value123"));
+        assert_eq!(result.get("withPath").and_then(|v| v.as_str()), Some("path/to/file"));
+        assert_eq!(result.get("withDots").and_then(|v| v.as_str()), Some("com.example.app"));
+        assert_eq!(result.get("withHyphens").and_then(|v| v.as_str()), Some("with-hyphens"));
+        assert_eq!(result.get("withUnderscores").and_then(|v| v.as_str()), Some("with_underscores"));
     }
 
     #[test]
     fn test_complex_nested_escapes() {
         let input = r#"{ complex = "prefix\n\tindented\\backslash\U0041suffix"; }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
         assert_eq!(
-            obj.get("complex").unwrap().as_str(),
+            result.get("complex").and_then(|v| v.as_str()),
             Some("prefix\n\tindented\\backslashAsuffix")
         );
     }
@@ -382,23 +363,21 @@ mod unicode_tests {
             scientificNotation = 1e5;
         }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        assert_eq!(obj.get("octalString").unwrap().as_str(), Some("0755"));
-        assert_eq!(obj.get("trailingZero").unwrap().as_str(), Some("1.0"));
-        assert_eq!(obj.get("integer").unwrap().as_integer(), Some(42));
-        match obj.get("float").unwrap() {
+        assert_eq!(result.get("octalString").and_then(|v| v.as_str()), Some("0755"));
+        assert_eq!(result.get("trailingZero").and_then(|v| v.as_str()), Some("1.0"));
+        assert_eq!(result.get("integer").and_then(|v| v.as_integer()), Some(42));
+        match result.get("float").unwrap() {
             PlistValue::Float(f) => assert!((*f - 3.14).abs() < 0.001),
             other => panic!("Expected Float, got {:?}", other),
         }
-        assert_eq!(obj.get("scientificNotation").unwrap().as_str(), Some("1e5"));
+        assert_eq!(result.get("scientificNotation").and_then(|v| v.as_str()), Some("1e5"));
     }
 
     #[test]
     fn test_data_literals() {
         let input = r#"{ singleByte = <48>; }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        match obj.get("singleByte").unwrap() {
+        match result.get("singleByte").unwrap() {
             PlistValue::Data(data) => assert_eq!(data, &vec![0x48]),
             other => panic!("Expected Data, got {:?}", other),
         }
@@ -408,8 +387,7 @@ mod unicode_tests {
     fn test_data_with_spaces() {
         let input = r#"{ dataWithSpaces = <48 65 6c 6c 6f>; }"#;
         let result = parse(input).unwrap();
-        let obj = result.as_object().unwrap();
-        match obj.get("dataWithSpaces").unwrap() {
+        match result.get("dataWithSpaces").unwrap() {
             PlistValue::Data(data) => assert_eq!(data, &vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]),
             other => panic!("Expected Data, got {:?}", other),
         }
@@ -425,10 +403,9 @@ mod unicode_tests {
         let parsed = parse(input).unwrap();
         let rebuilt = build(&parsed);
         let reparsed = parse(&rebuilt).unwrap();
-        let obj = reparsed.as_object().unwrap();
-        assert_eq!(obj.get("unicode").unwrap().as_str(), Some("Aé•"));
-        assert_eq!(obj.get("nextStep").unwrap().as_str(), Some("©•"));
-        assert_eq!(obj.get("mixed").unwrap().as_str(), Some("Hello\nWorld\tA"));
+        assert_eq!(reparsed.get("unicode").and_then(|v| v.as_str()), Some("Aé•"));
+        assert_eq!(reparsed.get("nextStep").and_then(|v| v.as_str()), Some("©•"));
+        assert_eq!(reparsed.get("mixed").and_then(|v| v.as_str()), Some("Hello\nWorld\tA"));
     }
 
     #[test]

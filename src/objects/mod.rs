@@ -1,9 +1,8 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 
-use indexmap::IndexMap;
-
 use crate::types::isa::Isa;
-use crate::types::plist::PlistValue;
+use crate::types::plist::{PlistMap, PlistObject, PlistValue};
 
 /// A trait providing shared behavior for all PBX object types.
 pub trait PbxObjectExt {
@@ -35,27 +34,25 @@ pub trait PbxObjectExt {
 pub struct PbxObject {
     pub uuid: String,
     pub isa: String,
-    pub props: IndexMap<String, PlistValue>,
+    pub props: PlistMap<'static>,
 }
 
 impl PbxObject {
     /// Create a new PbxObject from raw plist data.
-    pub fn from_plist(uuid: String, props: &IndexMap<String, PlistValue>) -> Self {
-        let isa = props
-            .get("isa")
-            .and_then(|v| v.as_str())
+    pub fn from_plist(uuid: String, pairs: &PlistObject<'static>) -> Self {
+        let isa = pairs
+            .iter()
+            .find(|(k, _)| k.as_ref() == "isa")
+            .and_then(|(_, v)| v.as_str())
             .unwrap_or("Unknown")
             .to_string();
-        PbxObject {
-            uuid,
-            isa,
-            props: props.clone(),
-        }
+        let props: PlistMap<'static> = pairs.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        PbxObject { uuid, isa, props }
     }
 
     /// Convert back to plist representation.
-    pub fn to_plist(&self) -> IndexMap<String, PlistValue> {
-        self.props.clone()
+    pub fn to_plist(&self) -> PlistObject<'static> {
+        self.props.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// Get a string property.
@@ -69,33 +66,33 @@ impl PbxObject {
     }
 
     /// Get an array property.
-    pub fn get_array(&self, key: &str) -> Option<&Vec<PlistValue>> {
+    pub fn get_array(&self, key: &str) -> Option<&Vec<PlistValue<'static>>> {
         self.props.get(key).and_then(|v| v.as_array())
     }
 
     /// Get an object (map) property.
-    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, PlistValue>> {
+    pub fn get_object(&self, key: &str) -> Option<&PlistObject<'static>> {
         self.props.get(key).and_then(|v| v.as_object())
     }
 
     /// Set a string property.
     pub fn set_str(&mut self, key: &str, value: &str) {
         self.props
-            .insert(key.to_string(), PlistValue::String(value.to_string()));
+            .insert(Cow::Owned(key.to_string()), PlistValue::String(Cow::Owned(value.to_string())));
     }
 
     /// Set an integer property.
     pub fn set_int(&mut self, key: &str, value: i64) {
-        self.props.insert(key.to_string(), PlistValue::Integer(value));
+        self.props.insert(Cow::Owned(key.to_string()), PlistValue::Integer(value));
     }
 
     /// Set a property.
-    pub fn set(&mut self, key: &str, value: PlistValue) {
-        self.props.insert(key.to_string(), value);
+    pub fn set(&mut self, key: &str, value: PlistValue<'static>) {
+        self.props.insert(Cow::Owned(key.to_string()), value);
     }
 
     /// Remove a property.
-    pub fn remove(&mut self, key: &str) -> Option<PlistValue> {
+    pub fn remove(&mut self, key: &str) -> Option<PlistValue<'static>> {
         self.props.shift_remove(key)
     }
 
@@ -141,7 +138,7 @@ impl PbxObject {
             if let Some(value) = self.props.get(key) {
                 match value {
                     PlistValue::String(s) if looks_like_uuid(s) => {
-                        refs.insert(s.clone());
+                        refs.insert(s.to_string());
                     }
                     PlistValue::Array(items) => {
                         for item in items {
@@ -180,7 +177,7 @@ impl PbxObjectExt for PbxObject {
         for key in self.reference_keys() {
             if let Some(value) = self.props.get(key) {
                 match value {
-                    PlistValue::String(s) if s == uuid => return true,
+                    PlistValue::String(s) if s.as_ref() == uuid => return true,
                     PlistValue::Array(items) => {
                         if items.iter().any(|item| item.as_str() == Some(uuid)) {
                             return true;
@@ -196,10 +193,10 @@ impl PbxObjectExt for PbxObject {
     fn remove_reference(&mut self, uuid: &str) {
         let keys: Vec<String> = self.reference_keys().iter().map(|k| k.to_string()).collect();
         for key in keys {
-            if let Some(value) = self.props.get_mut(&key) {
+            if let Some(value) = self.props.get_mut(key.as_str()) {
                 match value {
-                    PlistValue::String(s) if s == uuid => {
-                        *value = PlistValue::String(String::new());
+                    PlistValue::String(s) if s.as_ref() == uuid => {
+                        *value = PlistValue::String(Cow::Owned(String::new()));
                     }
                     PlistValue::Array(items) => {
                         items.retain(|item| item.as_str() != Some(uuid));
@@ -226,13 +223,14 @@ mod tests {
 
     #[test]
     fn test_pbx_object_basics() {
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String("PBXGroup".to_string()));
-        props.insert("name".to_string(), PlistValue::String("Sources".to_string()));
-        props.insert(
-            "children".to_string(),
-            PlistValue::Array(vec![PlistValue::String("13B07F961A680F5B00A75B9A".to_string())]),
-        );
+        let props: PlistObject<'static> = vec![
+            (Cow::Owned("isa".to_string()), PlistValue::String("PBXGroup".into())),
+            (Cow::Owned("name".to_string()), PlistValue::String("Sources".into())),
+            (
+                Cow::Owned("children".to_string()),
+                PlistValue::Array(vec![PlistValue::String("13B07F961A680F5B00A75B9A".into())]),
+            ),
+        ];
 
         let obj = PbxObject::from_plist("AABB00112233445566778899".to_string(), &props);
         assert_eq!(obj.isa, "PBXGroup");
@@ -243,15 +241,16 @@ mod tests {
 
     #[test]
     fn test_remove_reference() {
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String("PBXGroup".to_string()));
-        props.insert(
-            "children".to_string(),
-            PlistValue::Array(vec![
-                PlistValue::String("AAAA00000000000000000001".to_string()),
-                PlistValue::String("BBBB00000000000000000002".to_string()),
-            ]),
-        );
+        let props: PlistObject<'static> = vec![
+            (Cow::Owned("isa".to_string()), PlistValue::String("PBXGroup".into())),
+            (
+                Cow::Owned("children".to_string()),
+                PlistValue::Array(vec![
+                    PlistValue::String("AAAA00000000000000000001".into()),
+                    PlistValue::String("BBBB00000000000000000002".into()),
+                ]),
+            ),
+        ];
 
         let mut obj = PbxObject::from_plist("ROOT0000000000000000000".to_string(), &props);
         obj.remove_reference("AAAA00000000000000000001");

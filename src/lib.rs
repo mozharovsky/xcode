@@ -13,6 +13,8 @@ pub mod writer;
 
 #[cfg(feature = "wasm")]
 mod wasm_bindings {
+    use std::borrow::Cow;
+
     use serde::Serialize;
     use wasm_bindgen::prelude::*;
 
@@ -30,7 +32,7 @@ mod wasm_bindings {
     /// Serialize a JS object back to .pbxproj format.
     #[wasm_bindgen]
     pub fn build(project: JsValue) -> Result<String, JsError> {
-        let plist: crate::types::PlistValue =
+        let plist: crate::types::PlistValue<'static> =
             serde_wasm_bindgen::from_value(project).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(crate::writer::serializer::build(&plist))
     }
@@ -152,8 +154,11 @@ mod wasm_bindings {
 
         #[wasm_bindgen(js_name = "setBuildSetting")]
         pub fn set_build_setting(&mut self, target_uuid: &str, key: &str, value: &str) -> bool {
-            self.inner
-                .set_build_setting(target_uuid, key, crate::types::PlistValue::String(value.to_string()))
+            self.inner.set_build_setting(
+                target_uuid,
+                key,
+                crate::types::PlistValue::String(Cow::Owned(value.to_string())),
+            )
         }
 
         #[wasm_bindgen(js_name = "removeBuildSetting")]
@@ -267,19 +272,56 @@ mod wasm_bindings {
 
 #[cfg(feature = "napi")]
 mod napi_bindings {
+    use std::borrow::Cow;
+
     use napi::bindgen_prelude::*;
+    use napi::{Env, JsUnknown};
+
+    /// Convert a PlistValue tree directly to napi JS values, skipping serde_json::Value.
+    fn plist_to_napi(env: &Env, val: crate::types::PlistValue<'_>) -> Result<JsUnknown> {
+        use crate::types::PlistValue;
+        match val {
+            PlistValue::String(s) => Ok(env.create_string(&s)?.into_unknown()),
+            PlistValue::Integer(n) => Ok(env.create_int64(n)?.into_unknown()),
+            PlistValue::Float(f) => Ok(env.create_double(f)?.into_unknown()),
+            PlistValue::Data(bytes) => {
+                let mut obj = env.create_object()?;
+                obj.set_named_property("type", env.create_string("Buffer")?)?;
+                let mut arr = env.create_array_with_length(bytes.len())?;
+                for (i, &b) in bytes.iter().enumerate() {
+                    arr.set_element(i as u32, env.create_uint32(b as u32)?)?;
+                }
+                obj.set_named_property("data", arr)?;
+                Ok(obj.into_unknown())
+            }
+            PlistValue::Object(map) => {
+                let mut obj = env.create_object()?;
+                for (k, v) in map {
+                    obj.set_named_property(&k, plist_to_napi(env, v)?)?;
+                }
+                Ok(obj.into_unknown())
+            }
+            PlistValue::Array(vec) => {
+                let mut arr = env.create_array_with_length(vec.len())?;
+                for (i, v) in vec.into_iter().enumerate() {
+                    arr.set_element(i as u32, plist_to_napi(env, v)?)?;
+                }
+                Ok(arr.into_unknown())
+            }
+        }
+    }
 
     /// Parse a .pbxproj string into a JSON-compatible object.
-    #[napi]
-    pub fn parse(text: String) -> Result<serde_json::Value> {
+    #[napi(ts_return_type = "Record<string, any>")]
+    pub fn parse(env: Env, text: String) -> Result<JsUnknown> {
         let plist = crate::parser::parse(&text).map_err(|e| Error::from_reason(e))?;
-        serde_json::to_value(&plist).map_err(|e| Error::from_reason(e.to_string()))
+        plist_to_napi(&env, plist)
     }
 
     /// Serialize a JSON object back to .pbxproj format.
     #[napi]
     pub fn build(project: serde_json::Value) -> Result<String> {
-        let plist: crate::types::PlistValue =
+        let plist: crate::types::PlistValue<'static> =
             serde_json::from_value(project).map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(crate::writer::serializer::build(&plist))
     }
@@ -289,7 +331,7 @@ mod napi_bindings {
     /// avoiding napi's recursive JS→Rust object marshalling.
     #[napi(js_name = "buildFromJSON")]
     pub fn build_from_json(json: String) -> Result<String> {
-        let plist: crate::types::PlistValue =
+        let plist: crate::types::PlistValue<'static> =
             serde_json::from_str(&json).map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(crate::writer::serializer::build(&plist))
     }
@@ -338,9 +380,10 @@ mod napi_bindings {
         }
 
         /// Convert the project to a JSON-compatible object.
-        #[napi(js_name = "toJSON")]
-        pub fn to_json(&self) -> Result<serde_json::Value> {
-            self.inner.to_json().map_err(|e| Error::from_reason(e))
+        #[napi(js_name = "toJSON", ts_return_type = "Record<string, any>")]
+        pub fn to_json(&self, env: Env) -> Result<JsUnknown> {
+            let plist = self.inner.to_plist();
+            plist_to_napi(&env, plist)
         }
 
         /// Serialize the project back to .pbxproj format.
@@ -392,7 +435,7 @@ mod napi_bindings {
         #[napi]
         pub fn set_build_setting(&mut self, target_uuid: String, key: String, value: String) -> bool {
             self.inner
-                .set_build_setting(&target_uuid, &key, crate::types::PlistValue::String(value))
+                .set_build_setting(&target_uuid, &key, crate::types::PlistValue::String(Cow::Owned(value)))
         }
 
         /// Remove a build setting from all configurations for a target.

@@ -1,33 +1,58 @@
-use indexmap::IndexMap;
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
+
+/// Hash-indexed map used by PbxObject/XcodeProject for O(1) lookups.
+pub type PlistMap<'a> = indexmap::IndexMap<Cow<'a, str>, PlistValue<'a>, ahash::RandomState>;
+
+/// Ordered key-value pairs — the Object storage in PlistValue.
+/// Uses Vec for zero-overhead construction during parsing.
+pub type PlistObject<'a> = Vec<(Cow<'a, str>, PlistValue<'a>)>;
 
 /// Core in-memory representation for parsed .pbxproj data.
 ///
-/// Maps directly to Apple's Old-Style Plist format used by Xcode project files.
+/// The lifetime `'a` enables zero-copy parsing: both keys and values can borrow
+/// directly from the input text. Use `PlistValue<'static>` (via `into_owned()`)
+/// when long-lived ownership is needed (e.g. in `XcodeProject`).
 #[derive(Debug, Clone, PartialEq)]
-pub enum PlistValue {
+pub enum PlistValue<'a> {
     /// A string value (quoted or unquoted in the source).
-    String(String),
-    /// An integer value. Only used for unquoted digit-only values that fit in i64
-    /// and are within JS MAX_SAFE_INTEGER (2^53 - 1).
+    String(Cow<'a, str>),
+    /// An integer value.
     Integer(i64),
     /// A floating-point value.
     Float(f64),
     /// Binary data represented as `<hex bytes>` in the source.
     Data(Vec<u8>),
-    /// An ordered key-value map (`{ key = value; ... }`).
-    Object(IndexMap<String, PlistValue>),
+    /// An ordered key-value list (`{ key = value; ... }`).
+    Object(PlistObject<'a>),
     /// An ordered list of values (`( item1, item2, ... )`).
-    Array(Vec<PlistValue>),
+    Array(Vec<PlistValue<'a>>),
 }
 
-impl PlistValue {
-    /// Returns true if this is a String variant.
+impl<'a> PlistValue<'a> {
+    /// Convert all borrowed strings to owned, producing a `PlistValue<'static>`.
+    pub fn into_owned(self) -> PlistValue<'static> {
+        match self {
+            PlistValue::String(s) => PlistValue::String(Cow::Owned(s.into_owned())),
+            PlistValue::Integer(n) => PlistValue::Integer(n),
+            PlistValue::Float(f) => PlistValue::Float(f),
+            PlistValue::Data(d) => PlistValue::Data(d),
+            PlistValue::Object(pairs) => {
+                let owned: PlistObject<'static> = pairs
+                    .into_iter()
+                    .map(|(k, v)| (Cow::Owned(k.into_owned()), v.into_owned()))
+                    .collect();
+                PlistValue::Object(owned)
+            }
+            PlistValue::Array(vec) => PlistValue::Array(vec.into_iter().map(|v| v.into_owned()).collect()),
+        }
+    }
+
     pub fn is_string(&self) -> bool {
         matches!(self, PlistValue::String(_))
     }
 
-    /// Returns the string value if this is a String variant.
     pub fn as_str(&self) -> Option<&str> {
         match self {
             PlistValue::String(s) => Some(s),
@@ -35,7 +60,6 @@ impl PlistValue {
         }
     }
 
-    /// Returns the integer value if this is an Integer variant.
     pub fn as_integer(&self) -> Option<i64> {
         match self {
             PlistValue::Integer(n) => Some(*n),
@@ -43,46 +67,38 @@ impl PlistValue {
         }
     }
 
-    /// Returns a reference to the inner map if this is an Object variant.
-    pub fn as_object(&self) -> Option<&IndexMap<String, PlistValue>> {
+    /// Returns a reference to the inner pairs if this is an Object variant.
+    pub fn as_object(&self) -> Option<&PlistObject<'a>> {
         match self {
-            PlistValue::Object(map) => Some(map),
+            PlistValue::Object(pairs) => Some(pairs),
             _ => None,
         }
     }
 
-    /// Returns a mutable reference to the inner map if this is an Object variant.
-    pub fn as_object_mut(&mut self) -> Option<&mut IndexMap<String, PlistValue>> {
+    /// Returns a mutable reference to the inner pairs if this is an Object variant.
+    pub fn as_object_mut(&mut self) -> Option<&mut PlistObject<'a>> {
         match self {
-            PlistValue::Object(map) => Some(map),
+            PlistValue::Object(pairs) => Some(pairs),
             _ => None,
         }
     }
 
-    /// Returns a reference to the inner vec if this is an Array variant.
-    pub fn as_array(&self) -> Option<&Vec<PlistValue>> {
+    pub fn as_array(&self) -> Option<&Vec<PlistValue<'a>>> {
         match self {
             PlistValue::Array(vec) => Some(vec),
             _ => None,
         }
     }
 
-    /// Get a value from an Object by key.
-    pub fn get(&self, key: &str) -> Option<&PlistValue> {
-        self.as_object().and_then(|map| map.get(key))
+    /// Get a value from an Object by key (linear scan — fast for typical <20-key objects).
+    pub fn get(&self, key: &str) -> Option<&PlistValue<'a>> {
+        self.as_object()
+            .and_then(|pairs| pairs.iter().find(|(k, _)| k.as_ref() == key).map(|(_, v)| v))
     }
 }
 
-/// Serialize PlistValue to JSON for napi interop.
-///
-/// This matches the JsonVisitor.ts behavior:
-/// - Strings → JSON strings
-/// - Integers → JSON numbers
-/// - Floats → JSON numbers (but trailing .0 preserved as string in some contexts)
-/// - Data → JSON objects with { type: "Buffer", data: [...] } (matching Node.js Buffer.toJSON)
-/// - Objects → JSON objects (preserving key order)
-/// - Arrays → JSON arrays
-impl Serialize for PlistValue {
+/// Serialize PlistValue to JSON.
+impl<'a> Serialize for PlistValue<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -91,7 +107,6 @@ impl Serialize for PlistValue {
             PlistValue::String(s) => serializer.serialize_str(s),
             PlistValue::Integer(n) => serializer.serialize_i64(*n),
             PlistValue::Float(f) => {
-                // Preserve trailing zero: 5.0 stays as "5.0" string
                 let s = format!("{}", f);
                 if s.contains('.') {
                     serializer.serialize_f64(*f)
@@ -106,11 +121,11 @@ impl Serialize for PlistValue {
                 map.serialize_entry("data", bytes)?;
                 map.end()
             }
-            PlistValue::Object(map) => {
+            PlistValue::Object(pairs) => {
                 use serde::ser::SerializeMap;
-                let mut ser_map = serializer.serialize_map(Some(map.len()))?;
-                for (k, v) in map {
-                    ser_map.serialize_entry(k, v)?;
+                let mut ser_map = serializer.serialize_map(Some(pairs.len()))?;
+                for (k, v) in pairs {
+                    ser_map.serialize_entry(k.as_ref(), v)?;
                 }
                 ser_map.end()
             }
@@ -126,8 +141,8 @@ impl Serialize for PlistValue {
     }
 }
 
-/// Deserialize JSON back to PlistValue for napi interop.
-impl<'de> Deserialize<'de> for PlistValue {
+/// Deserialize JSON back to PlistValue (always produces owned / 'static values).
+impl<'de> Deserialize<'de> for PlistValue<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -138,45 +153,45 @@ impl<'de> Deserialize<'de> for PlistValue {
         struct PlistVisitor;
 
         impl<'de> Visitor<'de> for PlistVisitor {
-            type Value = PlistValue;
+            type Value = PlistValue<'static>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a valid plist value")
             }
 
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<PlistValue, E> {
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<PlistValue<'static>, E> {
                 Ok(PlistValue::Integer(v))
             }
 
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<PlistValue, E> {
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<PlistValue<'static>, E> {
                 if v <= i64::MAX as u64 {
                     Ok(PlistValue::Integer(v as i64))
                 } else {
-                    Ok(PlistValue::String(v.to_string()))
+                    Ok(PlistValue::String(Cow::Owned(v.to_string())))
                 }
             }
 
-            fn visit_f64<E: de::Error>(self, v: f64) -> Result<PlistValue, E> {
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<PlistValue<'static>, E> {
                 Ok(PlistValue::Float(v))
             }
 
-            fn visit_str<E: de::Error>(self, v: &str) -> Result<PlistValue, E> {
-                Ok(PlistValue::String(v.to_string()))
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<PlistValue<'static>, E> {
+                Ok(PlistValue::String(Cow::Owned(v.to_string())))
             }
 
-            fn visit_string<E: de::Error>(self, v: String) -> Result<PlistValue, E> {
-                Ok(PlistValue::String(v))
+            fn visit_string<E: de::Error>(self, v: String) -> Result<PlistValue<'static>, E> {
+                Ok(PlistValue::String(Cow::Owned(v)))
             }
 
-            fn visit_bool<E: de::Error>(self, v: bool) -> Result<PlistValue, E> {
-                Ok(PlistValue::String(if v { "YES" } else { "NO" }.to_string()))
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<PlistValue<'static>, E> {
+                Ok(PlistValue::String(Cow::Owned(if v { "YES" } else { "NO" }.to_string())))
             }
 
-            fn visit_none<E: de::Error>(self) -> Result<PlistValue, E> {
-                Ok(PlistValue::String(String::new()))
+            fn visit_none<E: de::Error>(self) -> Result<PlistValue<'static>, E> {
+                Ok(PlistValue::String(Cow::Owned(String::new())))
             }
 
-            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<PlistValue, A::Error> {
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<PlistValue<'static>, A::Error> {
                 let mut vec = Vec::new();
                 while let Some(elem) = seq.next_element()? {
                     vec.push(elem);
@@ -184,27 +199,27 @@ impl<'de> Deserialize<'de> for PlistValue {
                 Ok(PlistValue::Array(vec))
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<PlistValue, A::Error> {
-                // Check for Buffer objects: { type: "Buffer", data: [...] }
-                let mut index_map = IndexMap::new();
-                while let Some((key, value)) = map.next_entry::<String, PlistValue>()? {
-                    index_map.insert(key, value);
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<PlistValue<'static>, A::Error> {
+                let mut pairs = PlistObject::new();
+                while let Some((key, value)) = map.next_entry::<String, PlistValue<'static>>()? {
+                    pairs.push((Cow::Owned(key), value));
                 }
 
-                // Detect Buffer serialization format
-                if index_map.len() == 2 {
-                    if let Some(PlistValue::String(t)) = index_map.get("type") {
-                        if t == "Buffer" {
-                            if let Some(PlistValue::Array(data)) = index_map.get("data") {
-                                let bytes: Vec<u8> =
-                                    data.iter().filter_map(|v| v.as_integer().map(|n| n as u8)).collect();
-                                return Ok(PlistValue::Data(bytes));
-                            }
+                if pairs.len() == 2 {
+                    let has_buffer = pairs
+                        .iter()
+                        .find(|(k, _)| k.as_ref() == "type")
+                        .and_then(|(_, v)| v.as_str())
+                        .map_or(false, |t| t == "Buffer");
+                    if has_buffer {
+                        if let Some((_, PlistValue::Array(data))) = pairs.iter().find(|(k, _)| k.as_ref() == "data") {
+                            let bytes: Vec<u8> = data.iter().filter_map(|v| v.as_integer().map(|n| n as u8)).collect();
+                            return Ok(PlistValue::Data(bytes));
                         }
                     }
                 }
 
-                Ok(PlistValue::Object(index_map))
+                Ok(PlistValue::Object(pairs))
             }
         }
 
@@ -218,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_plist_value_string() {
-        let val = PlistValue::String("hello".to_string());
+        let val = PlistValue::String(Cow::Owned("hello".to_string()));
         assert_eq!(val.as_str(), Some("hello"));
         assert!(val.is_string());
     }
@@ -231,22 +246,28 @@ mod tests {
 
     #[test]
     fn test_plist_value_object() {
-        let mut map = IndexMap::new();
-        map.insert("key".to_string(), PlistValue::String("value".to_string()));
-        let val = PlistValue::Object(map);
+        let pairs: PlistObject = vec![(
+            Cow::Borrowed("key"),
+            PlistValue::String(Cow::Owned("value".to_string())),
+        )];
+        let val = PlistValue::Object(pairs);
         assert!(val.as_object().is_some());
         assert_eq!(val.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
     #[test]
     fn test_serialize_roundtrip() {
-        let mut map = IndexMap::new();
-        map.insert("name".to_string(), PlistValue::String("test".to_string()));
-        map.insert("version".to_string(), PlistValue::Integer(1));
-        let val = PlistValue::Object(map);
+        let pairs: PlistObject<'static> = vec![
+            (
+                Cow::Owned("name".to_string()),
+                PlistValue::String(Cow::Owned("test".to_string())),
+            ),
+            (Cow::Owned("version".to_string()), PlistValue::Integer(1)),
+        ];
+        let val: PlistValue<'static> = PlistValue::Object(pairs);
 
         let json = serde_json::to_string(&val).unwrap();
-        let back: PlistValue = serde_json::from_str(&json).unwrap();
+        let back: PlistValue<'static> = serde_json::from_str(&json).unwrap();
         assert_eq!(val, back);
     }
 }

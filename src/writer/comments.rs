@@ -1,37 +1,33 @@
 use std::collections::HashMap;
 
-use indexmap::IndexMap;
-
 use crate::types::PlistValue;
 
 /// Build a map of UUID → inline comment for serialization.
 ///
 /// Replicates `createReferenceList` from comments.ts.
-pub fn create_reference_list(project: &PlistValue) -> HashMap<String, String> {
+pub fn create_reference_list(project: &PlistValue<'_>) -> HashMap<String, String> {
     let mut cache: HashMap<String, String> = HashMap::new();
 
-    let objects = match project
-        .as_object()
-        .and_then(|p| p.get("objects"))
-        .and_then(|o| o.as_object())
-    {
+    let objects = match project.get("objects").and_then(|o| o.as_object()) {
         Some(o) => o,
         None => return cache,
     };
+
+    // Build O(1) lookup index for the objects dict (~4000 entries)
+    let index: HashMap<&str, &PlistValue<'_>> =
+        objects.iter().map(|(k, v)| (k.as_ref(), v)).collect();
 
     // Pre-build reverse index: build_file_uuid → (phase_isa, phase_name)
     // This eliminates the O(n²) scan in get_build_phase_name_containing_file
     let mut file_to_phase: HashMap<&str, (&str, Option<&str>)> = HashMap::new();
     for (_id, obj) in objects {
-        if let Some(obj_map) = obj.as_object() {
-            let isa = obj_map.get("isa").and_then(|v| v.as_str()).unwrap_or("");
-            if isa.ends_with("BuildPhase") {
-                let phase_name = obj_map.get("name").and_then(|v| v.as_str());
-                if let Some(files) = obj_map.get("files").and_then(|f| f.as_array()) {
-                    for f in files {
-                        if let Some(file_uuid) = f.as_str() {
-                            file_to_phase.insert(file_uuid, (isa, phase_name));
-                        }
+        let isa = obj.get("isa").and_then(|v| v.as_str()).unwrap_or("");
+        if isa.ends_with("BuildPhase") {
+            let phase_name = obj.get("name").and_then(|v| v.as_str());
+            if let Some(files) = obj.get("files").and_then(|f| f.as_array()) {
+                for f in files {
+                    if let Some(file_uuid) = f.as_str() {
+                        file_to_phase.insert(file_uuid, (isa, phase_name));
                     }
                 }
             }
@@ -40,7 +36,7 @@ pub fn create_reference_list(project: &PlistValue) -> HashMap<String, String> {
 
     // Process all objects to build comments
     for (id, object) in objects {
-        get_comment_for_object(id, object, objects, &file_to_phase, &mut cache);
+        get_comment_for_object(id, object, &index, &file_to_phase, &mut cache);
     }
 
     cache
@@ -48,31 +44,31 @@ pub fn create_reference_list(project: &PlistValue) -> HashMap<String, String> {
 
 fn get_comment_for_object<'a>(
     id: &str,
-    object: &'a PlistValue,
-    objects: &'a IndexMap<String, PlistValue>,
+    object: &PlistValue<'a>,
+    objects: &HashMap<&str, &PlistValue<'a>>,
     file_to_phase: &HashMap<&str, (&str, Option<&str>)>,
     cache: &mut HashMap<String, String>,
 ) -> Option<String> {
-    let obj = object.as_object()?;
-    let isa = obj.get("isa").and_then(|v| v.as_str())?;
+    object.as_object()?;
+    let isa = object.get("isa").and_then(|v| v.as_str())?;
 
     if let Some(cached) = cache.get(id) {
         return Some(cached.clone());
     }
 
     let comment = if isa == "PBXBuildFile" {
-        get_pbx_build_file_comment(id, obj, objects, file_to_phase, cache)
+        get_pbx_build_file_comment(id, object, objects, file_to_phase, cache)
     } else if isa == "XCConfigurationList" {
         Some(get_xc_configuration_list_comment(id, objects))
     } else if isa == "XCRemoteSwiftPackageReference" {
-        let repo_url = obj.get("repositoryURL").and_then(|v| v.as_str());
+        let repo_url = object.get("repositoryURL").and_then(|v| v.as_str());
         if let Some(url) = repo_url {
             Some(format!("{} \"{}\"", isa, get_repo_name_from_url(url)))
         } else {
             Some(isa.to_string())
         }
     } else if isa == "XCLocalSwiftPackageReference" {
-        let path = obj.get("relativePath").and_then(|v| v.as_str());
+        let path = object.get("relativePath").and_then(|v| v.as_str());
         if let Some(p) = path {
             Some(format!("{} \"{}\"", isa, p))
         } else {
@@ -81,17 +77,17 @@ fn get_comment_for_object<'a>(
     } else if isa == "PBXProject" {
         Some("Project object".to_string())
     } else if isa.ends_with("BuildPhase") {
-        Some(get_build_phase_name(obj, isa))
+        Some(get_build_phase_name(object, isa))
     } else if isa == "PBXGroup" {
-        let has_name = obj.get("name").and_then(|v| v.as_str()).is_some();
-        let has_path = obj.get("path").and_then(|v| v.as_str()).is_some();
+        let has_name = object.get("name").and_then(|v| v.as_str()).is_some();
+        let has_path = object.get("path").and_then(|v| v.as_str()).is_some();
         if !has_name && !has_path {
             Some(String::new())
         } else {
-            get_default_name(obj, isa)
+            get_default_name(object, isa)
         }
     } else {
-        get_default_name(obj, isa)
+        get_default_name(object, isa)
     };
 
     if let Some(ref c) = comment {
@@ -101,7 +97,7 @@ fn get_comment_for_object<'a>(
     comment
 }
 
-fn get_default_name(obj: &IndexMap<String, PlistValue>, isa: &str) -> Option<String> {
+fn get_default_name(obj: &PlistValue<'_>, isa: &str) -> Option<String> {
     obj.get("name")
         .and_then(|v| v.as_str())
         .or_else(|| obj.get("productName").and_then(|v| v.as_str()))
@@ -110,14 +106,13 @@ fn get_default_name(obj: &IndexMap<String, PlistValue>, isa: &str) -> Option<Str
         .or_else(|| Some(isa.to_string()))
 }
 
-fn get_pbx_build_file_comment(
+fn get_pbx_build_file_comment<'a>(
     id: &str,
-    build_file: &IndexMap<String, PlistValue>,
-    objects: &IndexMap<String, PlistValue>,
+    build_file: &PlistValue<'a>,
+    objects: &HashMap<&str, &PlistValue<'a>>,
     file_to_phase: &HashMap<&str, (&str, Option<&str>)>,
     cache: &mut HashMap<String, String>,
 ) -> Option<String> {
-    // O(1) lookup instead of O(n) scan
     let build_phase_name = if let Some(&(isa, name)) = file_to_phase.get(id) {
         name.map(|n| n.to_string())
             .unwrap_or_else(|| get_default_build_phase_name(isa).unwrap_or_default())
@@ -144,7 +139,7 @@ fn get_pbx_build_file_comment(
     Some(format!("{} in {}", name, build_phase_name))
 }
 
-fn get_build_phase_name(obj: &IndexMap<String, PlistValue>, isa: &str) -> String {
+fn get_build_phase_name(obj: &PlistValue<'_>, isa: &str) -> String {
     if let Some(name) = obj.get("name").and_then(|v| v.as_str()) {
         return name.to_string();
     }
@@ -162,29 +157,32 @@ fn get_default_build_phase_name(isa: &str) -> Option<String> {
     None
 }
 
-fn get_xc_configuration_list_comment(id: &str, objects: &IndexMap<String, PlistValue>) -> String {
-    for (inner_id, obj) in objects {
-        if let Some(obj_map) = obj.as_object() {
-            let config_list = obj_map.get("buildConfigurationList").and_then(|v| v.as_str());
+fn get_xc_configuration_list_comment<'a>(
+    id: &str,
+    objects: &HashMap<&str, &PlistValue<'a>>,
+) -> String {
+    for (&inner_id, obj) in objects {
+        if obj.as_object().is_some() {
+            let config_list = obj.get("buildConfigurationList").and_then(|v| v.as_str());
             if config_list == Some(id) {
-                let isa = obj_map.get("isa").and_then(|v| v.as_str()).unwrap_or("");
+                let isa = obj.get("isa").and_then(|v| v.as_str()).unwrap_or("");
 
-                let name = obj_map
+                let name = obj
                     .get("name")
                     .and_then(|v| v.as_str())
-                    .or_else(|| obj_map.get("path").and_then(|v| v.as_str()))
-                    .or_else(|| obj_map.get("productName").and_then(|v| v.as_str()));
+                    .or_else(|| obj.get("path").and_then(|v| v.as_str()))
+                    .or_else(|| obj.get("productName").and_then(|v| v.as_str()));
 
                 if let Some(name) = name {
                     return format!("Build configuration list for {} \"{}\"", isa, name);
                 }
 
-                if let Some(targets) = obj_map.get("targets").and_then(|v| v.as_array()) {
+                if let Some(targets) = obj.get("targets").and_then(|v| v.as_array()) {
                     if let Some(first_target_id) = targets.first().and_then(|v| v.as_str()) {
-                        if let Some(target_obj) = objects.get(first_target_id).and_then(|v| v.as_object()) {
-                            let target_name = target_obj
+                        if let Some(target_val) = objects.get(first_target_id) {
+                            let target_name = target_val
                                 .get("productName")
-                                .or_else(|| target_obj.get("name"))
+                                .or_else(|| target_val.get("name"))
                                 .and_then(|v| v.as_str());
                             if let Some(name) = target_name {
                                 return format!("Build configuration list for {} \"{}\"", isa, name);
@@ -193,12 +191,12 @@ fn get_xc_configuration_list_comment(id: &str, objects: &IndexMap<String, PlistV
                     }
                 }
 
-                let proxy_name = objects.values().find_map(|v| {
-                    let m = v.as_object()?;
-                    if m.get("isa").and_then(|v| v.as_str()) == Some("PBXContainerItemProxy")
-                        && m.get("containerPortal").and_then(|v| v.as_str()) == Some(inner_id)
+                let proxy_name = objects.values().find_map(|val| {
+                    val.as_object()?;
+                    if val.get("isa").and_then(|v| v.as_str()) == Some("PBXContainerItemProxy")
+                        && val.get("containerPortal").and_then(|v| v.as_str()) == Some(inner_id)
                     {
-                        m.get("remoteInfo").and_then(|v| v.as_str()).map(|s| s.to_string())
+                        val.get("remoteInfo").and_then(|v| v.as_str()).map(|s| s.to_string())
                     } else {
                         None
                     }

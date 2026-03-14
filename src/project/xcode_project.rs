@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -5,7 +6,7 @@ use indexmap::IndexMap;
 
 use crate::objects::{PbxObject, PbxObjectExt};
 use crate::parser;
-use crate::types::plist::PlistValue;
+use crate::types::plist::{PlistMap, PlistObject, PlistValue};
 use crate::writer::serializer;
 
 use super::uuid::generate_uuid;
@@ -29,7 +30,7 @@ pub struct OrphanedReference {
 pub struct XcodeProject {
     pub archive_version: i64,
     pub object_version: i64,
-    pub classes: IndexMap<String, PlistValue>,
+    pub classes: PlistObject<'static>,
     pub root_object_uuid: String,
     objects: IndexMap<String, PbxObject>,
     file_path: Option<String>,
@@ -46,41 +47,41 @@ impl XcodeProject {
 
     /// Parse a .pbxproj string into an XcodeProject.
     pub fn from_plist(text: &str) -> Result<Self, String> {
-        let plist = parser::parse(text)?;
+        let plist = parser::parse(text)?.into_owned();
         Self::from_plist_value(&plist)
     }
 
     /// Create from an already-parsed PlistValue.
-    pub fn from_plist_value(plist: &PlistValue) -> Result<Self, String> {
-        let root = plist.as_object().ok_or("Root must be an object")?;
+    pub fn from_plist_value(plist: &PlistValue<'static>) -> Result<Self, String> {
+        plist.as_object().ok_or("Root must be an object")?;
 
-        let archive_version = root.get("archiveVersion").and_then(|v| v.as_integer()).unwrap_or(1);
+        let archive_version = plist.get("archiveVersion").and_then(|v| v.as_integer()).unwrap_or(1);
 
-        let object_version = root.get("objectVersion").and_then(|v| v.as_integer()).unwrap_or(46);
+        let object_version = plist.get("objectVersion").and_then(|v| v.as_integer()).unwrap_or(46);
 
-        let classes = root
+        let classes = plist
             .get("classes")
             .and_then(|v| v.as_object())
             .cloned()
             .unwrap_or_default();
 
-        let root_object_uuid = root
+        let root_object_uuid = plist
             .get("rootObject")
             .and_then(|v| v.as_str())
             .ok_or("rootObject is required")?
             .to_string();
 
-        let objects_map = root
+        let objects_pairs = plist
             .get("objects")
             .and_then(|v| v.as_object())
             .ok_or("objects is required")?;
 
         // Inflate all objects
         let mut objects = IndexMap::new();
-        for (uuid, obj_plist) in objects_map {
-            if let Some(obj_map) = obj_plist.as_object() {
-                let obj = PbxObject::from_plist(uuid.clone(), obj_map);
-                objects.insert(uuid.clone(), obj);
+        for (uuid, obj_plist) in objects_pairs {
+            if let Some(obj_pairs) = obj_plist.as_object() {
+                let obj = PbxObject::from_plist(uuid.to_string(), obj_pairs);
+                objects.insert(uuid.to_string(), obj);
             }
         }
 
@@ -107,22 +108,22 @@ impl XcodeProject {
     }
 
     /// Convert the project to a PlistValue for serialization.
-    pub fn to_plist(&self) -> PlistValue {
-        let mut root = IndexMap::new();
-        root.insert("archiveVersion".to_string(), PlistValue::Integer(self.archive_version));
-        root.insert("classes".to_string(), PlistValue::Object(self.classes.clone()));
-        root.insert("objectVersion".to_string(), PlistValue::Integer(self.object_version));
-
-        // Build objects map
-        let mut objects = IndexMap::new();
+    pub fn to_plist(&self) -> PlistValue<'static> {
+        let mut objects_pairs: PlistObject<'static> = Vec::new();
         for (uuid, obj) in &self.objects {
-            objects.insert(uuid.clone(), PlistValue::Object(obj.to_plist()));
+            objects_pairs.push((Cow::Owned(uuid.clone()), PlistValue::Object(obj.to_plist())));
         }
-        root.insert("objects".to_string(), PlistValue::Object(objects));
-        root.insert(
-            "rootObject".to_string(),
-            PlistValue::String(self.root_object_uuid.clone()),
-        );
+
+        let root: PlistObject<'static> = vec![
+            (Cow::Owned("archiveVersion".to_string()), PlistValue::Integer(self.archive_version)),
+            (Cow::Owned("classes".to_string()), PlistValue::Object(self.classes.clone())),
+            (Cow::Owned("objectVersion".to_string()), PlistValue::Integer(self.object_version)),
+            (Cow::Owned("objects".to_string()), PlistValue::Object(objects_pairs)),
+            (
+                Cow::Owned("rootObject".to_string()),
+                PlistValue::String(Cow::Owned(self.root_object_uuid.clone())),
+            ),
+        ];
 
         PlistValue::Object(root)
     }
@@ -215,10 +216,11 @@ impl XcodeProject {
     }
 
     /// Create a new object and add it to the project.
-    pub fn create_object(&mut self, props: IndexMap<String, PlistValue>) -> String {
+    pub fn create_object(&mut self, props: PlistMap<'static>) -> String {
         let seed = serde_json::to_string(&props).unwrap_or_default();
         let uuid = self.get_unique_id(&seed);
-        let obj = PbxObject::from_plist(uuid.clone(), &props);
+        let pairs: PlistObject<'static> = props.into_iter().collect();
+        let obj = PbxObject::from_plist(uuid.clone(), &pairs);
         self.objects.insert(uuid.clone(), obj);
         uuid
     }
@@ -254,12 +256,12 @@ impl XcodeProject {
                 if let Some(value) = obj.props.get(key) {
                     match value {
                         PlistValue::String(ref_uuid) if !ref_uuid.is_empty() => {
-                            if !self.objects.contains_key(ref_uuid) {
+                            if !self.objects.contains_key(&**ref_uuid) {
                                 orphans.push(OrphanedReference {
                                     referrer_uuid: uuid.clone(),
                                     referrer_isa: obj.isa.clone(),
                                     property: key.to_string(),
-                                    orphan_uuid: ref_uuid.clone(),
+                                    orphan_uuid: ref_uuid.to_string(),
                                 });
                             }
                         }
@@ -358,7 +360,7 @@ impl XcodeProject {
                             if let Some(config_uuid) = config_val.as_str() {
                                 if let Some(config) = self.get_object(config_uuid) {
                                     if let Some(build_settings) = config.get_object("buildSettings") {
-                                        if build_settings.contains_key(deployment_key) {
+                                        if build_settings.iter().any(|(k, _)| k.as_ref() == deployment_key) {
                                             return Some(*target);
                                         }
                                     }
@@ -414,16 +416,16 @@ impl XcodeProject {
     }
 
     /// Get a build setting value from a target's default configuration.
-    pub fn get_build_setting(&self, target_uuid: &str, key: &str) -> Option<PlistValue> {
+    pub fn get_build_setting(&self, target_uuid: &str, key: &str) -> Option<PlistValue<'static>> {
         let target = self.get_object(target_uuid)?;
         let config_list_uuid = target.get_str("buildConfigurationList")?;
         let config = self.get_default_configuration(config_list_uuid)?;
         let build_settings = config.get_object("buildSettings")?;
-        build_settings.get(key).cloned()
+        build_settings.iter().find(|(k, _)| k.as_ref() == key).map(|(_, v)| v.clone())
     }
 
     /// Set a build setting on all configurations for a target.
-    pub fn set_build_setting(&mut self, target_uuid: &str, key: &str, value: PlistValue) -> bool {
+    pub fn set_build_setting(&mut self, target_uuid: &str, key: &str, value: PlistValue<'static>) -> bool {
         let target = match self.get_object(target_uuid) {
             Some(t) => t,
             None => return false,
@@ -444,7 +446,11 @@ impl XcodeProject {
         for config_uuid in config_uuids {
             if let Some(config) = self.get_object_mut(&config_uuid) {
                 if let Some(PlistValue::Object(ref mut settings)) = config.props.get_mut("buildSettings") {
-                    settings.insert(key.to_string(), value.clone());
+                    if let Some(pos) = settings.iter().position(|(k, _)| k.as_ref() == key) {
+                        settings[pos].1 = value.clone();
+                    } else {
+                        settings.push((Cow::Owned(key.to_string()), value.clone()));
+                    }
                 }
             }
         }
@@ -484,25 +490,25 @@ impl XcodeProject {
             .and_then(|n| n.to_str())
             .unwrap_or(path);
 
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
-        props.insert("fileEncoding".to_string(), PlistValue::Integer(4));
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXFileReference".to_string())));
+        props.insert(Cow::Owned("fileEncoding".to_string()), PlistValue::Integer(4));
         props.insert(
-            "lastKnownFileType".to_string(),
-            PlistValue::String(file_type.to_string()),
+            Cow::Owned("lastKnownFileType".to_string()),
+            PlistValue::String(Cow::Owned(file_type.to_string())),
         );
         if name != path {
-            props.insert("name".to_string(), PlistValue::String(name.to_string()));
+            props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned(name.to_string())));
         }
-        props.insert("path".to_string(), PlistValue::String(path.to_string()));
-        props.insert("sourceTree".to_string(), PlistValue::String(source_tree.to_string()));
+        props.insert(Cow::Owned("path".to_string()), PlistValue::String(Cow::Owned(path.to_string())));
+        props.insert(Cow::Owned("sourceTree".to_string()), PlistValue::String(Cow::Owned(source_tree.to_string())));
 
         let file_uuid = self.create_object(props);
 
         // Add to group's children
         if let Some(group) = self.get_object_mut(group_uuid) {
             if let Some(PlistValue::Array(ref mut children)) = group.props.get_mut("children") {
-                children.push(PlistValue::String(file_uuid.clone()));
+                children.push(PlistValue::String(Cow::Owned(file_uuid.clone())));
             }
         }
 
@@ -512,17 +518,17 @@ impl XcodeProject {
     /// Create a group and add it as a child of a parent group.
     /// Returns the UUID of the new PBXGroup.
     pub fn add_group(&mut self, parent_uuid: &str, name: &str) -> Option<String> {
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String("PBXGroup".to_string()));
-        props.insert("children".to_string(), PlistValue::Array(vec![]));
-        props.insert("name".to_string(), PlistValue::String(name.to_string()));
-        props.insert("sourceTree".to_string(), PlistValue::String("<group>".to_string()));
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXGroup".to_string())));
+        props.insert(Cow::Owned("children".to_string()), PlistValue::Array(vec![]));
+        props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned(name.to_string())));
+        props.insert(Cow::Owned("sourceTree".to_string()), PlistValue::String(Cow::Owned("<group>".to_string())));
 
         let group_uuid = self.create_object(props);
 
         if let Some(parent) = self.get_object_mut(parent_uuid) {
             if let Some(PlistValue::Array(ref mut children)) = parent.props.get_mut("children") {
-                children.push(PlistValue::String(group_uuid.clone()));
+                children.push(PlistValue::String(Cow::Owned(group_uuid.clone())));
             }
         }
 
@@ -534,15 +540,15 @@ impl XcodeProject {
     /// Add a build file to a build phase (e.g. adding a source file to the Sources phase).
     /// Returns the UUID of the new PBXBuildFile.
     pub fn add_build_file(&mut self, phase_uuid: &str, file_ref_uuid: &str) -> Option<String> {
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String("PBXBuildFile".to_string()));
-        props.insert("fileRef".to_string(), PlistValue::String(file_ref_uuid.to_string()));
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXBuildFile".to_string())));
+        props.insert(Cow::Owned("fileRef".to_string()), PlistValue::String(Cow::Owned(file_ref_uuid.to_string())));
 
         let build_file_uuid = self.create_object(props);
 
         if let Some(phase) = self.get_object_mut(phase_uuid) {
             if let Some(PlistValue::Array(ref mut files)) = phase.props.get_mut("files") {
-                files.push(PlistValue::String(build_file_uuid.clone()));
+                files.push(PlistValue::String(Cow::Owned(build_file_uuid.clone())));
             }
         }
 
@@ -558,18 +564,18 @@ impl XcodeProject {
         }
 
         // Create new phase
-        let mut props = IndexMap::new();
-        props.insert("isa".to_string(), PlistValue::String(phase_isa.to_string()));
-        props.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
-        props.insert("files".to_string(), PlistValue::Array(vec![]));
-        props.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned(phase_isa.to_string())));
+        props.insert(Cow::Owned("buildActionMask".to_string()), PlistValue::Integer(2147483647));
+        props.insert(Cow::Owned("files".to_string()), PlistValue::Array(vec![]));
+        props.insert(Cow::Owned("runOnlyForDeploymentPostprocessing".to_string()), PlistValue::Integer(0));
 
         let phase_uuid = self.create_object(props);
 
         // Add to target's buildPhases
         if let Some(target) = self.get_object_mut(target_uuid) {
             if let Some(PlistValue::Array(ref mut phases)) = target.props.get_mut("buildPhases") {
-                phases.push(PlistValue::String(phase_uuid.clone()));
+                phases.push(PlistValue::String(Cow::Owned(phase_uuid.clone())));
             }
         }
 
@@ -588,15 +594,15 @@ impl XcodeProject {
         let path = format!("System/Library/Frameworks/{}", name);
 
         // Create PBXFileReference for the framework
-        let mut file_props = IndexMap::new();
-        file_props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
+        let mut file_props = PlistMap::default();
+        file_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXFileReference".to_string())));
         file_props.insert(
-            "lastKnownFileType".to_string(),
-            PlistValue::String("wrapper.framework".to_string()),
+            Cow::Owned("lastKnownFileType".to_string()),
+            PlistValue::String(Cow::Owned("wrapper.framework".to_string())),
         );
-        file_props.insert("name".to_string(), PlistValue::String(name.clone()));
-        file_props.insert("path".to_string(), PlistValue::String(path));
-        file_props.insert("sourceTree".to_string(), PlistValue::String("SDKROOT".to_string()));
+        file_props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned(name.clone())));
+        file_props.insert(Cow::Owned("path".to_string()), PlistValue::String(Cow::Owned(path)));
+        file_props.insert(Cow::Owned("sourceTree".to_string()), PlistValue::String(Cow::Owned("SDKROOT".to_string())));
 
         let file_ref_uuid = self.create_object(file_props);
 
@@ -613,19 +619,19 @@ impl XcodeProject {
     /// Returns the UUID of the PBXTargetDependency.
     pub fn add_dependency(&mut self, target_uuid: &str, depends_on_uuid: &str) -> Option<String> {
         // Create PBXContainerItemProxy
-        let mut proxy_props = IndexMap::new();
+        let mut proxy_props = PlistMap::default();
         proxy_props.insert(
-            "isa".to_string(),
-            PlistValue::String("PBXContainerItemProxy".to_string()),
+            Cow::Owned("isa".to_string()),
+            PlistValue::String(Cow::Owned("PBXContainerItemProxy".to_string())),
         );
         proxy_props.insert(
-            "containerPortal".to_string(),
-            PlistValue::String(self.root_object_uuid.clone()),
+            Cow::Owned("containerPortal".to_string()),
+            PlistValue::String(Cow::Owned(self.root_object_uuid.clone())),
         );
-        proxy_props.insert("proxyType".to_string(), PlistValue::Integer(1));
+        proxy_props.insert(Cow::Owned("proxyType".to_string()), PlistValue::Integer(1));
         proxy_props.insert(
-            "remoteGlobalIDString".to_string(),
-            PlistValue::String(depends_on_uuid.to_string()),
+            Cow::Owned("remoteGlobalIDString".to_string()),
+            PlistValue::String(Cow::Owned(depends_on_uuid.to_string())),
         );
 
         // Get name of the dependency target
@@ -634,22 +640,22 @@ impl XcodeProject {
             .and_then(|t| t.get_str("name"))
             .unwrap_or("Unknown")
             .to_string();
-        proxy_props.insert("remoteInfo".to_string(), PlistValue::String(remote_name));
+        proxy_props.insert(Cow::Owned("remoteInfo".to_string()), PlistValue::String(Cow::Owned(remote_name)));
 
         let proxy_uuid = self.create_object(proxy_props);
 
         // Create PBXTargetDependency
-        let mut dep_props = IndexMap::new();
-        dep_props.insert("isa".to_string(), PlistValue::String("PBXTargetDependency".to_string()));
-        dep_props.insert("target".to_string(), PlistValue::String(depends_on_uuid.to_string()));
-        dep_props.insert("targetProxy".to_string(), PlistValue::String(proxy_uuid));
+        let mut dep_props = PlistMap::default();
+        dep_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXTargetDependency".to_string())));
+        dep_props.insert(Cow::Owned("target".to_string()), PlistValue::String(Cow::Owned(depends_on_uuid.to_string())));
+        dep_props.insert(Cow::Owned("targetProxy".to_string()), PlistValue::String(Cow::Owned(proxy_uuid)));
 
         let dep_uuid = self.create_object(dep_props);
 
         // Add to target's dependencies
         if let Some(target) = self.get_object_mut(target_uuid) {
             if let Some(PlistValue::Array(ref mut deps)) = target.props.get_mut("dependencies") {
-                deps.push(PlistValue::String(dep_uuid.clone()));
+                deps.push(PlistValue::String(Cow::Owned(dep_uuid.clone())));
             }
         }
 
@@ -681,23 +687,23 @@ impl XcodeProject {
         };
 
         // 1. Create product PBXFileReference
-        let mut product_props = IndexMap::new();
-        product_props.insert("isa".to_string(), PlistValue::String("PBXFileReference".to_string()));
+        let mut product_props = PlistMap::default();
+        product_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXFileReference".to_string())));
         product_props.insert(
-            "explicitFileType".to_string(),
-            PlistValue::String(
+            Cow::Owned("explicitFileType".to_string()),
+            PlistValue::String(Cow::Owned(
                 crate::types::constants::FILE_TYPES_BY_EXTENSION
                     .get(product_ext)
                     .copied()
                     .unwrap_or("wrapper.application")
                     .to_string(),
-            ),
+            )),
         );
-        product_props.insert("includeInIndex".to_string(), PlistValue::Integer(0));
-        product_props.insert("path".to_string(), PlistValue::String(product_name));
+        product_props.insert(Cow::Owned("includeInIndex".to_string()), PlistValue::Integer(0));
+        product_props.insert(Cow::Owned("path".to_string()), PlistValue::String(Cow::Owned(product_name)));
         product_props.insert(
-            "sourceTree".to_string(),
-            PlistValue::String("BUILT_PRODUCTS_DIR".to_string()),
+            Cow::Owned("sourceTree".to_string()),
+            PlistValue::String(Cow::Owned("BUILT_PRODUCTS_DIR".to_string())),
         );
         let product_ref_uuid = self.create_object(product_props);
 
@@ -705,124 +711,120 @@ impl XcodeProject {
         if let Some(products_uuid) = self.product_ref_group_uuid() {
             if let Some(products) = self.get_object_mut(&products_uuid) {
                 if let Some(PlistValue::Array(ref mut children)) = products.props.get_mut("children") {
-                    children.push(PlistValue::String(product_ref_uuid.clone()));
+                    children.push(PlistValue::String(Cow::Owned(product_ref_uuid.clone())));
                 }
             }
         }
 
         // 2. Create Debug build configuration
-        let mut debug_settings = IndexMap::new();
-        debug_settings.insert(
-            "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
-            PlistValue::String(bundle_id.to_string()),
-        );
-        debug_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(name.to_string()));
-        debug_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
+        let debug_settings: PlistObject<'static> = vec![
+            (Cow::Owned("PRODUCT_BUNDLE_IDENTIFIER".to_string()), PlistValue::String(Cow::Owned(bundle_id.to_string()))),
+            (Cow::Owned("PRODUCT_NAME".to_string()), PlistValue::String(Cow::Owned(name.to_string()))),
+            (Cow::Owned("SWIFT_VERSION".to_string()), PlistValue::String(Cow::Owned("5.0".to_string()))),
+        ];
 
-        let mut debug_props = IndexMap::new();
+        let mut debug_props = PlistMap::default();
         debug_props.insert(
-            "isa".to_string(),
-            PlistValue::String("XCBuildConfiguration".to_string()),
+            Cow::Owned("isa".to_string()),
+            PlistValue::String(Cow::Owned("XCBuildConfiguration".to_string())),
         );
-        debug_props.insert("buildSettings".to_string(), PlistValue::Object(debug_settings));
-        debug_props.insert("name".to_string(), PlistValue::String("Debug".to_string()));
+        debug_props.insert(Cow::Owned("buildSettings".to_string()), PlistValue::Object(debug_settings));
+        debug_props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned("Debug".to_string())));
         let debug_uuid = self.create_object(debug_props);
 
         // 3. Create Release build configuration
-        let mut release_settings = IndexMap::new();
-        release_settings.insert(
-            "PRODUCT_BUNDLE_IDENTIFIER".to_string(),
-            PlistValue::String(bundle_id.to_string()),
-        );
-        release_settings.insert("PRODUCT_NAME".to_string(), PlistValue::String(name.to_string()));
-        release_settings.insert("SWIFT_VERSION".to_string(), PlistValue::String("5.0".to_string()));
+        let release_settings: PlistObject<'static> = vec![
+            (Cow::Owned("PRODUCT_BUNDLE_IDENTIFIER".to_string()), PlistValue::String(Cow::Owned(bundle_id.to_string()))),
+            (Cow::Owned("PRODUCT_NAME".to_string()), PlistValue::String(Cow::Owned(name.to_string()))),
+            (Cow::Owned("SWIFT_VERSION".to_string()), PlistValue::String(Cow::Owned("5.0".to_string()))),
+        ];
 
-        let mut release_props = IndexMap::new();
+        let mut release_props = PlistMap::default();
         release_props.insert(
-            "isa".to_string(),
-            PlistValue::String("XCBuildConfiguration".to_string()),
+            Cow::Owned("isa".to_string()),
+            PlistValue::String(Cow::Owned("XCBuildConfiguration".to_string())),
         );
-        release_props.insert("buildSettings".to_string(), PlistValue::Object(release_settings));
-        release_props.insert("name".to_string(), PlistValue::String("Release".to_string()));
+        release_props.insert(Cow::Owned("buildSettings".to_string()), PlistValue::Object(release_settings));
+        release_props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned("Release".to_string())));
         let release_uuid = self.create_object(release_props);
 
         // 4. Create XCConfigurationList
-        let mut config_list_props = IndexMap::new();
-        config_list_props.insert("isa".to_string(), PlistValue::String("XCConfigurationList".to_string()));
+        let mut config_list_props = PlistMap::default();
+        config_list_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("XCConfigurationList".to_string())));
         config_list_props.insert(
-            "buildConfigurations".to_string(),
-            PlistValue::Array(vec![PlistValue::String(debug_uuid), PlistValue::String(release_uuid)]),
+            Cow::Owned("buildConfigurations".to_string()),
+            PlistValue::Array(vec![PlistValue::String(Cow::Owned(debug_uuid)), PlistValue::String(Cow::Owned(release_uuid))]),
         );
-        config_list_props.insert("defaultConfigurationIsVisible".to_string(), PlistValue::Integer(0));
+        config_list_props.insert(Cow::Owned("defaultConfigurationIsVisible".to_string()), PlistValue::Integer(0));
         config_list_props.insert(
-            "defaultConfigurationName".to_string(),
-            PlistValue::String("Release".to_string()),
+            Cow::Owned("defaultConfigurationName".to_string()),
+            PlistValue::String(Cow::Owned("Release".to_string())),
         );
         let config_list_uuid = self.create_object(config_list_props);
 
         // 5. Create standard build phases
         let sources_uuid = {
-            let mut p = IndexMap::new();
+            let mut p = PlistMap::default();
             p.insert(
-                "isa".to_string(),
-                PlistValue::String("PBXSourcesBuildPhase".to_string()),
+                Cow::Owned("isa".to_string()),
+                PlistValue::String(Cow::Owned("PBXSourcesBuildPhase".to_string())),
             );
-            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
-            p.insert("files".to_string(), PlistValue::Array(vec![]));
-            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            p.insert(Cow::Owned("buildActionMask".to_string()), PlistValue::Integer(2147483647));
+            p.insert(Cow::Owned("files".to_string()), PlistValue::Array(vec![]));
+            p.insert(Cow::Owned("runOnlyForDeploymentPostprocessing".to_string()), PlistValue::Integer(0));
             self.create_object(p)
         };
         let frameworks_uuid = {
-            let mut p = IndexMap::new();
+            let mut p = PlistMap::default();
             p.insert(
-                "isa".to_string(),
-                PlistValue::String("PBXFrameworksBuildPhase".to_string()),
+                Cow::Owned("isa".to_string()),
+                PlistValue::String(Cow::Owned("PBXFrameworksBuildPhase".to_string())),
             );
-            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
-            p.insert("files".to_string(), PlistValue::Array(vec![]));
-            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            p.insert(Cow::Owned("buildActionMask".to_string()), PlistValue::Integer(2147483647));
+            p.insert(Cow::Owned("files".to_string()), PlistValue::Array(vec![]));
+            p.insert(Cow::Owned("runOnlyForDeploymentPostprocessing".to_string()), PlistValue::Integer(0));
             self.create_object(p)
         };
         let resources_uuid = {
-            let mut p = IndexMap::new();
+            let mut p = PlistMap::default();
             p.insert(
-                "isa".to_string(),
-                PlistValue::String("PBXResourcesBuildPhase".to_string()),
+                Cow::Owned("isa".to_string()),
+                PlistValue::String(Cow::Owned("PBXResourcesBuildPhase".to_string())),
             );
-            p.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
-            p.insert("files".to_string(), PlistValue::Array(vec![]));
-            p.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+            p.insert(Cow::Owned("buildActionMask".to_string()), PlistValue::Integer(2147483647));
+            p.insert(Cow::Owned("files".to_string()), PlistValue::Array(vec![]));
+            p.insert(Cow::Owned("runOnlyForDeploymentPostprocessing".to_string()), PlistValue::Integer(0));
             self.create_object(p)
         };
 
         // 6. Create PBXNativeTarget
-        let mut target_props = IndexMap::new();
-        target_props.insert("isa".to_string(), PlistValue::String("PBXNativeTarget".to_string()));
+        let mut target_props = PlistMap::default();
+        target_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXNativeTarget".to_string())));
         target_props.insert(
-            "buildConfigurationList".to_string(),
-            PlistValue::String(config_list_uuid),
+            Cow::Owned("buildConfigurationList".to_string()),
+            PlistValue::String(Cow::Owned(config_list_uuid)),
         );
         target_props.insert(
-            "buildPhases".to_string(),
+            Cow::Owned("buildPhases".to_string()),
             PlistValue::Array(vec![
-                PlistValue::String(sources_uuid),
-                PlistValue::String(frameworks_uuid),
-                PlistValue::String(resources_uuid),
+                PlistValue::String(Cow::Owned(sources_uuid)),
+                PlistValue::String(Cow::Owned(frameworks_uuid)),
+                PlistValue::String(Cow::Owned(resources_uuid)),
             ]),
         );
-        target_props.insert("buildRules".to_string(), PlistValue::Array(vec![]));
-        target_props.insert("dependencies".to_string(), PlistValue::Array(vec![]));
-        target_props.insert("name".to_string(), PlistValue::String(name.to_string()));
-        target_props.insert("productName".to_string(), PlistValue::String(name.to_string()));
-        target_props.insert("productReference".to_string(), PlistValue::String(product_ref_uuid));
-        target_props.insert("productType".to_string(), PlistValue::String(product_type.to_string()));
+        target_props.insert(Cow::Owned("buildRules".to_string()), PlistValue::Array(vec![]));
+        target_props.insert(Cow::Owned("dependencies".to_string()), PlistValue::Array(vec![]));
+        target_props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned(name.to_string())));
+        target_props.insert(Cow::Owned("productName".to_string()), PlistValue::String(Cow::Owned(name.to_string())));
+        target_props.insert(Cow::Owned("productReference".to_string()), PlistValue::String(Cow::Owned(product_ref_uuid)));
+        target_props.insert(Cow::Owned("productType".to_string()), PlistValue::String(Cow::Owned(product_type.to_string())));
         let target_uuid = self.create_object(target_props);
 
         // 7. Add target to PBXProject.targets
         let root_uuid = self.root_object_uuid.clone();
         if let Some(root) = self.get_object_mut(&root_uuid) {
             if let Some(PlistValue::Array(ref mut targets)) = root.props.get_mut("targets") {
-                targets.push(PlistValue::String(target_uuid.clone()));
+                targets.push(PlistValue::String(Cow::Owned(target_uuid.clone())));
             }
         }
 
@@ -1039,38 +1041,37 @@ impl XcodeProject {
         };
 
         // Create PBXBuildFile referencing the extension product
-        let mut build_file_props = IndexMap::new();
-        build_file_props.insert("isa".to_string(), PlistValue::String("PBXBuildFile".to_string()));
-        build_file_props.insert("fileRef".to_string(), PlistValue::String(product_ref_uuid));
-        let mut settings = IndexMap::new();
-        settings.insert(
-            "ATTRIBUTES".to_string(),
-            PlistValue::Array(vec![PlistValue::String("RemoveHeadersOnCopy".to_string())]),
-        );
-        build_file_props.insert("settings".to_string(), PlistValue::Object(settings));
+        let mut build_file_props = PlistMap::default();
+        build_file_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXBuildFile".to_string())));
+        build_file_props.insert(Cow::Owned("fileRef".to_string()), PlistValue::String(Cow::Owned(product_ref_uuid)));
+        let settings: PlistObject<'static> = vec![(
+            Cow::Owned("ATTRIBUTES".to_string()),
+            PlistValue::Array(vec![PlistValue::String(Cow::Owned("RemoveHeadersOnCopy".to_string()))]),
+        )];
+        build_file_props.insert(Cow::Owned("settings".to_string()), PlistValue::Object(settings));
         let build_file_uuid = self.create_object(build_file_props);
 
         // Create PBXCopyFilesBuildPhase
-        let mut phase_props = IndexMap::new();
+        let mut phase_props = PlistMap::default();
         phase_props.insert(
-            "isa".to_string(),
-            PlistValue::String("PBXCopyFilesBuildPhase".to_string()),
+            Cow::Owned("isa".to_string()),
+            PlistValue::String(Cow::Owned("PBXCopyFilesBuildPhase".to_string())),
         );
-        phase_props.insert("buildActionMask".to_string(), PlistValue::Integer(2147483647));
-        phase_props.insert("dstPath".to_string(), PlistValue::String(dst_path.to_string()));
-        phase_props.insert("dstSubfolderSpec".to_string(), PlistValue::Integer(dst_subfolder_spec));
+        phase_props.insert(Cow::Owned("buildActionMask".to_string()), PlistValue::Integer(2147483647));
+        phase_props.insert(Cow::Owned("dstPath".to_string()), PlistValue::String(Cow::Owned(dst_path.to_string())));
+        phase_props.insert(Cow::Owned("dstSubfolderSpec".to_string()), PlistValue::Integer(dst_subfolder_spec));
         phase_props.insert(
-            "files".to_string(),
-            PlistValue::Array(vec![PlistValue::String(build_file_uuid)]),
+            Cow::Owned("files".to_string()),
+            PlistValue::Array(vec![PlistValue::String(Cow::Owned(build_file_uuid))]),
         );
-        phase_props.insert("name".to_string(), PlistValue::String(phase_name.to_string()));
-        phase_props.insert("runOnlyForDeploymentPostprocessing".to_string(), PlistValue::Integer(0));
+        phase_props.insert(Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned(phase_name.to_string())));
+        phase_props.insert(Cow::Owned("runOnlyForDeploymentPostprocessing".to_string()), PlistValue::Integer(0));
         let phase_uuid = self.create_object(phase_props);
 
         // Add phase to host target's buildPhases
         if let Some(host) = self.get_object_mut(host_target_uuid) {
             if let Some(PlistValue::Array(ref mut phases)) = host.props.get_mut("buildPhases") {
-                phases.push(PlistValue::String(phase_uuid.clone()));
+                phases.push(PlistValue::String(Cow::Owned(phase_uuid.clone())));
             }
         }
 
@@ -1087,25 +1088,25 @@ impl XcodeProject {
     ///
     /// Returns the UUID of the sync group.
     pub fn add_file_system_sync_group(&mut self, target_uuid: &str, path: &str) -> Option<String> {
-        let mut props = IndexMap::new();
+        let mut props = PlistMap::default();
         props.insert(
-            "isa".to_string(),
-            PlistValue::String("PBXFileSystemSynchronizedRootGroup".to_string()),
+            Cow::Owned("isa".to_string()),
+            PlistValue::String(Cow::Owned("PBXFileSystemSynchronizedRootGroup".to_string())),
         );
-        props.insert("path".to_string(), PlistValue::String(path.to_string()));
-        props.insert("sourceTree".to_string(), PlistValue::String("<group>".to_string()));
+        props.insert(Cow::Owned("path".to_string()), PlistValue::String(Cow::Owned(path.to_string())));
+        props.insert(Cow::Owned("sourceTree".to_string()), PlistValue::String(Cow::Owned("<group>".to_string())));
         let sync_group_uuid = self.create_object(props);
 
         // Add to target's fileSystemSynchronizedGroups
         if let Some(target) = self.get_object_mut(target_uuid) {
             match target.props.get_mut("fileSystemSynchronizedGroups") {
                 Some(PlistValue::Array(ref mut groups)) => {
-                    groups.push(PlistValue::String(sync_group_uuid.clone()));
+                    groups.push(PlistValue::String(Cow::Owned(sync_group_uuid.clone())));
                 }
                 _ => {
                     target.props.insert(
-                        "fileSystemSynchronizedGroups".to_string(),
-                        PlistValue::Array(vec![PlistValue::String(sync_group_uuid.clone())]),
+                        Cow::Owned("fileSystemSynchronizedGroups".to_string()),
+                        PlistValue::Array(vec![PlistValue::String(Cow::Owned(sync_group_uuid.clone()))]),
                     );
                 }
             }
@@ -1116,7 +1117,7 @@ impl XcodeProject {
         if let Some(mg_uuid) = main_group {
             if let Some(group) = self.get_object_mut(&mg_uuid) {
                 if let Some(PlistValue::Array(ref mut children)) = group.props.get_mut("children") {
-                    children.push(PlistValue::String(sync_group_uuid.clone()));
+                    children.push(PlistValue::String(Cow::Owned(sync_group_uuid.clone())));
                 }
             }
         }
@@ -1166,7 +1167,7 @@ impl XcodeProject {
         for config_uuid in config_uuids {
             if let Some(config) = self.get_object_mut(&config_uuid) {
                 if let Some(PlistValue::Object(ref mut settings)) = config.props.get_mut("buildSettings") {
-                    settings.shift_remove(key);
+                    settings.retain(|(k, _)| k.as_ref() != key);
                 }
             }
         }

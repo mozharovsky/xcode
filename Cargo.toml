@@ -21,6 +21,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 indexmap = { version = "2", features = ["serde"] }
+ahash = { version = "0.8", default-features = false, features = ["compile-time-rng"] }
 md-5 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -44,3 +45,7 @@ lto = true
 strip = "symbols"
 codegen-units = 1
 opt-level = "z"
+
+[profile.bench]
+inherits = "release"
+opt-level = 3
