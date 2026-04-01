@@ -106,14 +106,7 @@ impl<'a> Serialize for PlistValue<'a> {
         match self {
             PlistValue::String(s) => serializer.serialize_str(s),
             PlistValue::Integer(n) => serializer.serialize_i64(*n),
-            PlistValue::Float(f) => {
-                let s = format!("{}", f);
-                if s.contains('.') {
-                    serializer.serialize_f64(*f)
-                } else {
-                    serializer.serialize_f64(*f)
-                }
-            }
+            PlistValue::Float(f) => serializer.serialize_f64(*f),
             PlistValue::Data(bytes) => {
                 use serde::ser::SerializeMap;
                 let mut map = serializer.serialize_map(Some(2))?;
@@ -210,7 +203,7 @@ impl<'de> Deserialize<'de> for PlistValue<'static> {
                         .iter()
                         .find(|(k, _)| k.as_ref() == "type")
                         .and_then(|(_, v)| v.as_str())
-                        .map_or(false, |t| t == "Buffer");
+                        == Some("Buffer");
                     if has_buffer {
                         if let Some((_, PlistValue::Array(data))) = pairs.iter().find(|(k, _)| k.as_ref() == "data") {
                             let bytes: Vec<u8> = data.iter().filter_map(|v| v.as_integer().map(|n| n as u8)).collect();

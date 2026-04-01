@@ -1,9 +1,9 @@
 /// Integration tests for the pbxproj parser and writer.
 ///
 /// These tests mirror the original TypeScript test suite from @bacons/xcode.
-use xcode::parser::parse;
-use xcode::types::plist::PlistValue;
-use xcode::writer::serializer::build;
+use xcodekit::parser::parse;
+use xcodekit::types::plist::PlistValue;
+use xcodekit::writer::serializer::build;
 
 mod fixture_tests {
     use super::*;

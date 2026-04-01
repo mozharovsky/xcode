@@ -49,33 +49,33 @@ fn main() {
         let mb = content.len() as f64 / (1024.0 * 1024.0);
 
         let lex_med = bench(|| {
-            let mut lexer = xcode::parser::lexer::Lexer::new(&content);
+            let mut lexer = xcodekit::parser::lexer::Lexer::new(&content);
             let _ = lexer.tokenize_all().unwrap();
         });
 
         let parse_med = bench(|| {
-            let _ = xcode::parser::parse(&content).unwrap();
+            let _ = xcodekit::parser::parse(&content).unwrap();
         });
 
-        let parsed = xcode::parser::parse(&content).unwrap();
+        let parsed = xcodekit::parser::parse(&content).unwrap();
         let build_med = bench(|| {
-            let _ = xcode::writer::serializer::build(&parsed);
+            let _ = xcodekit::writer::serializer::build(&parsed);
         });
 
         let rt_med = bench(|| {
-            let p = xcode::parser::parse(&content).unwrap();
-            let _ = xcode::writer::serializer::build(&p);
+            let p = xcodekit::parser::parse(&content).unwrap();
+            let _ = xcodekit::writer::serializer::build(&p);
         });
 
         // Also bench JSON deser path (serde)
         let json = serde_json::to_string(&parsed).unwrap();
         let json_deser_med = bench(|| {
-            let _: xcode::types::plist::PlistValue = serde_json::from_str(&json).unwrap();
+            let _: xcodekit::types::plist::PlistValue = serde_json::from_str(&json).unwrap();
         });
 
         let json_deser_build_med = bench(|| {
-            let p: xcode::types::plist::PlistValue = serde_json::from_str(&json).unwrap();
-            let _ = xcode::writer::serializer::build(&p);
+            let p: xcodekit::types::plist::PlistValue = serde_json::from_str(&json).unwrap();
+            let _ = xcodekit::writer::serializer::build(&p);
         });
 
         println!("─ {} ({}) ─", fixture, size);

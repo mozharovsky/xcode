@@ -14,8 +14,7 @@ pub fn create_reference_list(project: &PlistValue<'_>) -> HashMap<String, String
     };
 
     // Build O(1) lookup index for the objects dict (~4000 entries)
-    let index: HashMap<&str, &PlistValue<'_>> =
-        objects.iter().map(|(k, v)| (k.as_ref(), v)).collect();
+    let index: HashMap<&str, &PlistValue<'_>> = objects.iter().map(|(k, v)| (k.as_ref(), v)).collect();
 
     // Pre-build reverse index: build_file_uuid → (phase_isa, phase_name)
     // This eliminates the O(n²) scan in get_build_phase_name_containing_file
@@ -157,10 +156,7 @@ fn get_default_build_phase_name(isa: &str) -> Option<String> {
     None
 }
 
-fn get_xc_configuration_list_comment<'a>(
-    id: &str,
-    objects: &HashMap<&str, &PlistValue<'a>>,
-) -> String {
+fn get_xc_configuration_list_comment<'a>(id: &str, objects: &HashMap<&str, &PlistValue<'a>>) -> String {
     for (&inner_id, obj) in objects {
         if obj.as_object().is_some() {
             let config_list = obj.get("buildConfigurationList").and_then(|v| v.as_str());
@@ -215,7 +211,7 @@ fn get_xc_configuration_list_comment<'a>(
 
 fn get_repo_name_from_url(repo_url: &str) -> String {
     if let Some(path) = repo_url.strip_prefix("https://github.com/") {
-        if let Some(name) = path.split('/').last() {
+        if let Some(name) = path.split('/').next_back() {
             let name = name.strip_suffix(".git").unwrap_or(name);
             if !name.is_empty() {
                 return name.to_string();
@@ -223,7 +219,7 @@ fn get_repo_name_from_url(repo_url: &str) -> String {
         }
     }
     if let Some(path) = repo_url.strip_prefix("http://github.com/") {
-        if let Some(name) = path.split('/').last() {
+        if let Some(name) = path.split('/').next_back() {
             let name = name.strip_suffix(".git").unwrap_or(name);
             if !name.is_empty() {
                 return name.to_string();

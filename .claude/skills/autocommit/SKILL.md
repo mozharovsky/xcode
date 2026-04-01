@@ -51,7 +51,6 @@ Automatically commit staged changes using conventional commit format.
    ```
 
    **Types:**
-
    - `feat` - new feature
    - `fix` - bug fix
    - `refactor` - code refactoring without changing functionality
@@ -63,20 +62,17 @@ Automatically commit staged changes using conventional commit format.
    - `ci` - CI/CD changes
 
    **Scopes (project-specific):**
-
    - `parser` - lexer, parser, escape handling (`src/parser/`)
    - `writer` - serializer, comments, quoting (`src/writer/`)
    - `project` - XcodeProject API, build settings, paths, UUIDs (`src/project/`)
    - `types` - plist types, ISA definitions, constants (`src/types/`)
    - `objects` - pbxproj object model (`src/objects/`)
-   - `napi` - Node.js N-API bindings (`src/lib.rs`)
-   - `tests` - integration tests and JS specs (`tests/`, `__test__/`)
+   - `cli` - CLI commands, output, resolution (`cli/`)
+   - `tests` - integration tests (`tests/`)
    - `bench` - benchmarks (`benches/`)
    - `ci` - GitHub Actions workflows (`.github/`)
-   - `npm` - npm packaging and platform targets (`npm/`, `package.json`)
 
 4. **Show the proposed commit message and ASK for confirmation:**
-
    - Display the exact command that will be run
    - Wait for explicit user approval before running `git commit`
 

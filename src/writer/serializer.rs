@@ -217,7 +217,7 @@ impl Writer {
 
         for (isa, entries) in &mut by_isa {
             self.buf.push('\n');
-            let _ = write!(self.buf, "/* Begin {} section */\n", isa);
+            let _ = writeln!(self.buf, "/* Begin {} section */", isa);
 
             entries.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
 
@@ -225,7 +225,7 @@ impl Writer {
                 self.write_object_inclusive(id, obj);
             }
 
-            let _ = write!(self.buf, "/* End {} section */\n", isa);
+            let _ = writeln!(self.buf, "/* End {} section */", isa);
         }
     }
 

@@ -38,7 +38,7 @@ const NEXT_STEP_MAPPINGS: [(u8, u32); 128] = [
 
 /// Look up a NeXTSTEP byte value (>= 0x80) to its Unicode code point.
 fn nextstep_to_unicode(code: u32) -> u32 {
-    if code < 0x80 || code > 0xFF {
+    if !(0x80..=0xFF).contains(&code) {
         return code;
     }
     for &(byte, unicode) in &NEXT_STEP_MAPPINGS {
