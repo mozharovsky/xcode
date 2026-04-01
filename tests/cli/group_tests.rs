@@ -10,8 +10,12 @@ fn list_children() {
 #[test]
 fn remove_not_found() {
     let out = xcodekit(&[
-        "group", "remove", &fixture("project.pbxproj"),
-        "--group", "NonexistentGroup", "--json",
+        "group",
+        "remove",
+        &fixture("project.pbxproj"),
+        "--group",
+        "NonexistentGroup",
+        "--json",
     ]);
     assert!(!out.status.success());
     assert!(stderr(&out).contains("GROUP_NOT_FOUND"));

@@ -22,8 +22,7 @@ pub fn read_project_input(path: &str) -> Result<(String, String), CliError> {
         Ok(("<stdin>".to_string(), content))
     } else {
         let resolved = normalize_project_path(path);
-        let content = std::fs::read_to_string(&resolved)
-            .map_err(|_| CliError::file_not_found(path))?;
+        let content = std::fs::read_to_string(&resolved).map_err(|_| CliError::file_not_found(path))?;
         Ok((resolved, content))
     }
 }
