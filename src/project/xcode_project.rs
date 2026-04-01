@@ -1635,6 +1635,139 @@ mod tests {
     }
 
     #[test]
+    fn test_remove_file() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        let initial_count = project.objects().count();
+
+        let file_refs = project.find_objects_by_isa("PBXFileReference");
+        assert!(!file_refs.is_empty());
+        let file_uuid = file_refs[0].clone();
+
+        assert!(project.remove_file(&file_uuid));
+        assert!(project.get_object(&file_uuid).is_none());
+        assert!(project.objects().count() < initial_count);
+
+        // Removing again should return false
+        assert!(!project.remove_file(&file_uuid));
+
+        // Nonexistent UUID
+        assert!(!project.remove_file("000000000000000000000000"));
+    }
+
+    #[test]
+    fn test_remove_group() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        // Create a group, then remove it
+        let main_group = project.main_group_uuid().unwrap();
+        let group_uuid = project.add_group(&main_group, "TempGroup").unwrap();
+
+        assert!(project.get_object(&group_uuid).is_some());
+        let children_before = project.get_group_children(&main_group);
+        assert!(children_before.contains(&group_uuid));
+
+        assert!(project.remove_group(&group_uuid));
+        assert!(project.get_object(&group_uuid).is_none());
+
+        let children_after = project.get_group_children(&main_group);
+        assert!(!children_after.contains(&group_uuid));
+
+        // Removing again returns false
+        assert!(!project.remove_group(&group_uuid));
+    }
+
+    #[test]
+    fn test_add_remote_swift_package() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        assert!(project.list_swift_packages().is_empty());
+
+        let uuid = project
+            .add_remote_swift_package("https://github.com/apple/swift-collections", "1.0.0")
+            .unwrap();
+
+        let obj = project.get_object(&uuid).unwrap();
+        assert_eq!(obj.isa, "XCRemoteSwiftPackageReference");
+        assert_eq!(obj.get_str("repositoryURL"), Some("https://github.com/apple/swift-collections"));
+
+        let packages = project.list_swift_packages();
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].0, uuid);
+        assert!(packages[0].2.contains("swift-collections"));
+    }
+
+    #[test]
+    fn test_add_local_swift_package() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        let uuid = project.add_local_swift_package("../Packages/MyLib").unwrap();
+
+        let obj = project.get_object(&uuid).unwrap();
+        assert_eq!(obj.isa, "XCLocalSwiftPackageReference");
+        assert_eq!(obj.get_str("relativePath"), Some("../Packages/MyLib"));
+
+        let packages = project.list_swift_packages();
+        assert_eq!(packages.len(), 1);
+    }
+
+    #[test]
+    fn test_add_and_remove_swift_package_product() {
+        let path = Path::new(FIXTURES_DIR).join("project.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let mut project = XcodeProject::from_plist(&content).unwrap();
+
+        let target_uuid = project.native_targets()[0].uuid.clone();
+        let package_uuid = project
+            .add_remote_swift_package("https://github.com/apple/swift-collections", "1.0.0")
+            .unwrap();
+
+        let dep_uuid = project
+            .add_swift_package_product(&target_uuid, "Collections", &package_uuid)
+            .unwrap();
+
+        let dep_obj = project.get_object(&dep_uuid).unwrap();
+        assert_eq!(dep_obj.isa, "XCSwiftPackageProductDependency");
+        assert_eq!(dep_obj.get_str("productName"), Some("Collections"));
+
+        // Verify it was added to target's packageProductDependencies
+        let target = project.get_object(&target_uuid).unwrap();
+        let deps = target.get_array("packageProductDependencies").unwrap();
+        assert!(deps.iter().any(|v| v.as_str() == Some(&dep_uuid)));
+
+        // Remove it
+        assert!(project.remove_swift_package_product(&target_uuid, "Collections"));
+        assert!(project.get_object(&dep_uuid).is_none());
+
+        // Target should no longer have it
+        let target = project.get_object(&target_uuid).unwrap();
+        let deps = target.get_array("packageProductDependencies").unwrap();
+        assert!(!deps.iter().any(|v| v.as_str() == Some(&dep_uuid)));
+
+        // Removing again returns false
+        assert!(!project.remove_swift_package_product(&target_uuid, "Collections"));
+    }
+
+    #[test]
+    fn test_list_swift_packages_on_spm_fixture() {
+        let path = Path::new(FIXTURES_DIR).join("006-spm.pbxproj");
+        let content = fs::read_to_string(&path).unwrap();
+        let project = XcodeProject::from_plist(&content).unwrap();
+
+        let packages = project.list_swift_packages();
+        assert!(!packages.is_empty());
+        assert!(packages.iter().any(|(_, _, loc)| loc.contains("supabase")));
+    }
+
+    #[test]
     fn test_malformed_project_still_parses() {
         // Malformed projects should parse and round-trip without crashing
         let path = Path::new(FIXTURES_DIR).join("malformed.pbxproj");
