@@ -1,5 +1,58 @@
 use super::*;
 
+// ── Duplicate target ─────────────────────────────────────────
+
+#[test]
+fn duplicate_dry_run() {
+    let out = xcodekit(&[
+        "target",
+        "duplicate",
+        &fixture("project.pbxproj"),
+        "--target",
+        "testproject",
+        "--new-name",
+        "testproject-copy",
+        "--json",
+    ]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    assert!(json["uuid"].is_string());
+    assert_eq!(json["changed"], false);
+}
+
+#[test]
+fn duplicate_invalid_target() {
+    let out = xcodekit(&[
+        "target",
+        "duplicate",
+        &fixture("project.pbxproj"),
+        "--target",
+        "nonexistent",
+        "--new-name",
+        "copy",
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("TARGET_NOT_FOUND"));
+}
+
+#[test]
+fn duplicate_multitarget() {
+    let out = xcodekit(&[
+        "target",
+        "duplicate",
+        &fixture("project-multitarget.pbxproj"),
+        "--target",
+        "multitarget",
+        "--new-name",
+        "multitarget-clone",
+        "--json",
+    ]);
+    assert!(out.status.success());
+    assert!(json_stdout(&out)["uuid"].is_string());
+}
+
+// ── List / Show ──────────────────────────────────────────────
+
 #[test]
 fn list_targets() {
     let out = xcodekit(&["target", "list", &fixture("project.pbxproj"), "--json"]);
@@ -20,10 +73,7 @@ fn list_multitarget() {
 
 #[test]
 fn show_by_name() {
-    let out = xcodekit(&[
-        "target", "show", &fixture("project.pbxproj"),
-        "--target", "testproject", "--json",
-    ]);
+    let out = xcodekit(&["target", "show", &fixture("project.pbxproj"), "--target", "testproject", "--json"]);
     assert!(out.status.success());
     let json = json_stdout(&out);
     assert_eq!(json["name"], "testproject");
@@ -32,10 +82,7 @@ fn show_by_name() {
 
 #[test]
 fn show_not_found() {
-    let out = xcodekit(&[
-        "target", "show", &fixture("project.pbxproj"),
-        "--target", "nonexistent", "--json",
-    ]);
+    let out = xcodekit(&["target", "show", &fixture("project.pbxproj"), "--target", "nonexistent", "--json"]);
     assert!(!out.status.success());
     assert!(stderr(&out).contains("TARGET_NOT_FOUND"));
 }

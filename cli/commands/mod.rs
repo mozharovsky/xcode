@@ -1,3 +1,4 @@
+pub mod batch;
 pub mod build_setting;
 pub mod dependency;
 pub mod doctor;

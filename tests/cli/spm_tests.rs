@@ -19,9 +19,14 @@ fn list_on_non_spm_project() {
 #[test]
 fn add_remote_dry_run() {
     let out = xcodekit(&[
-        "spm", "add-remote", &fixture("project.pbxproj"),
-        "--url", "https://github.com/apple/swift-collections",
-        "--version", "1.0.0", "--json",
+        "spm",
+        "add-remote",
+        &fixture("project.pbxproj"),
+        "--url",
+        "https://github.com/apple/swift-collections",
+        "--version",
+        "1.0.0",
+        "--json",
     ]);
     assert!(out.status.success());
     let json = json_stdout(&out);
@@ -31,10 +36,8 @@ fn add_remote_dry_run() {
 
 #[test]
 fn add_local_dry_run() {
-    let out = xcodekit(&[
-        "spm", "add-local", &fixture("project.pbxproj"),
-        "--package-path", "../Packages/MyLib", "--json",
-    ]);
+    let out =
+        xcodekit(&["spm", "add-local", &fixture("project.pbxproj"), "--package-path", "../Packages/MyLib", "--json"]);
     assert!(out.status.success());
     assert!(json_stdout(&out)["uuid"].is_string());
 }

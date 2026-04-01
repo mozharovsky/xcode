@@ -4,8 +4,9 @@ use clap::Subcommand;
 use xcodekit::project::XcodeProject;
 use xcodekit::types::PlistValue;
 
-use crate::output::{self, CliError};
+use crate::output::{self, CliError, ErrorCode};
 use crate::resolve::resolve_target;
+use crate::resolve::PhaseType;
 
 #[derive(Subcommand)]
 pub enum BuildAction {
@@ -68,8 +69,25 @@ pub enum PhaseAction {
         path: String,
         #[arg(long)]
         target: String,
-        #[arg(long, name = "type")]
-        phase_type: String,
+        #[arg(long = "type", value_enum)]
+        phase_type: PhaseType,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a run script build phase to a target
+    #[command(name = "add-script")]
+    AddScript {
+        path: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        script: String,
+        #[arg(long, default_value = "/bin/sh")]
+        shell: String,
         #[arg(long)]
         write: bool,
         #[arg(long)]
@@ -93,27 +111,16 @@ pub enum PhaseAction {
 fn open(path: &str) -> Result<XcodeProject, CliError> {
     let resolved = crate::output::normalize_project_path(path);
     XcodeProject::open(&resolved).map_err(|e| {
-        if e.contains("Failed to read") { CliError::file_not_found(path) }
-        else { CliError::parse_error(&e) }
+        if e.contains("Failed to read") {
+            CliError::file_not_found(path)
+        } else {
+            CliError::parse_error(&e)
+        }
     })
 }
 
 fn save(project: &XcodeProject, path: &str) -> Result<(), CliError> {
-    std::fs::write(path, project.to_pbxproj())
-        .map_err(|e| CliError::new("WRITE_FAILED", e.to_string()))
-}
-
-fn map_phase_type(name: &str) -> String {
-    match name.to_lowercase().as_str() {
-        "sources" => "PBXSourcesBuildPhase",
-        "frameworks" => "PBXFrameworksBuildPhase",
-        "resources" => "PBXResourcesBuildPhase",
-        "headers" => "PBXHeadersBuildPhase",
-        "copyfiles" | "copy-files" => "PBXCopyFilesBuildPhase",
-        "shellscript" | "shell-script" => "PBXShellScriptBuildPhase",
-        other => other,
-    }
-    .to_string()
+    std::fs::write(path, project.to_pbxproj()).map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))
 }
 
 pub fn run(action: BuildAction) -> Result<(), CliError> {
@@ -131,9 +138,7 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
             let value = project.get_build_setting(&uuid, &key);
 
             if json {
-                let v = value
-                    .map(|v| serde_json::to_value(&v).unwrap_or_default())
-                    .unwrap_or(serde_json::Value::Null);
+                let v = value.map(|v| serde_json::to_value(&v).unwrap_or_default()).unwrap_or(serde_json::Value::Null);
                 output::print_json(&serde_json::json!({ "key": key, "value": v }));
             } else {
                 match value {
@@ -149,14 +154,14 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
             let uuid = resolve_target(&project, &target)?;
             project.set_build_setting(&uuid, &key, PlistValue::String(Cow::Owned(value.clone())));
 
-            if write { save(&project, &path)?; }
+            if write {
+                save(&project, &path)?;
+            }
 
             if json {
                 output::print_json(&serde_json::json!({ "changed": write }));
             } else {
-                println!("Set {} = {}{}",
-                    key, value,
-                    if write { "" } else { " (dry-run, use --write to save)" });
+                println!("Set {} = {}{}", key, value, if write { "" } else { " (dry-run, use --write to save)" });
             }
             Ok(())
         }
@@ -166,14 +171,14 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
             let uuid = resolve_target(&project, &target)?;
             project.remove_build_setting(&uuid, &key);
 
-            if write { save(&project, &path)?; }
+            if write {
+                save(&project, &path)?;
+            }
 
             if json {
                 output::print_json(&serde_json::json!({ "changed": write }));
             } else {
-                println!("Removed {}{}",
-                    key,
-                    if write { "" } else { " (dry-run, use --write to save)" });
+                println!("Removed {}{}", key, if write { "" } else { " (dry-run, use --write to save)" });
             }
             Ok(())
         }
@@ -185,33 +190,56 @@ fn run_phase(action: PhaseAction) -> Result<(), CliError> {
         PhaseAction::Ensure { path, target, phase_type, write, json } => {
             let mut project = open(&path)?;
             let target_uuid = resolve_target(&project, &target)?;
-            let isa = map_phase_type(&phase_type);
-            let uuid = project.ensure_build_phase(&target_uuid, &isa)
-                .ok_or_else(|| CliError::new("PHASE_FAILED", "Failed to ensure build phase"))?;
+            let isa = phase_type.as_isa();
+            let uuid = project
+                .ensure_build_phase(&target_uuid, isa)
+                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to ensure build phase"))?;
 
-            if write { save(&project, &path)?; }
+            if write {
+                save(&project, &path)?;
+            }
 
             if json {
                 output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write }));
             } else {
-                println!("Build phase {} ({}){}", isa, uuid,
-                    if write { "" } else { " (dry-run)" });
+                println!("Build phase {} ({}){}", isa, uuid, if write { "" } else { " (dry-run)" });
+            }
+            Ok(())
+        }
+
+        PhaseAction::AddScript { path, target, name, script, shell, write, json } => {
+            let mut project = open(&path)?;
+            let target_uuid = resolve_target(&project, &target)?;
+            let uuid = project
+                .add_run_script_phase(&target_uuid, &name, &script, Some(&shell))
+                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to add run script phase"))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write }));
+            } else {
+                println!("Added run script phase '{}' ({}){}", name, uuid, if write { "" } else { " (dry-run)" });
             }
             Ok(())
         }
 
         PhaseAction::AddFile { path, phase, file_ref, write, json } => {
             let mut project = open(&path)?;
-            let uuid = project.add_build_file(&phase, &file_ref)
-                .ok_or_else(|| CliError::new("ADD_FAILED", "Failed to add build file"))?;
+            let uuid = project
+                .add_build_file(&phase, &file_ref)
+                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add build file"))?;
 
-            if write { save(&project, &path)?; }
+            if write {
+                save(&project, &path)?;
+            }
 
             if json {
                 output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write }));
             } else {
-                println!("Added build file {}{}", uuid,
-                    if write { "" } else { " (dry-run)" });
+                println!("Added build file {}{}", uuid, if write { "" } else { " (dry-run)" });
             }
             Ok(())
         }

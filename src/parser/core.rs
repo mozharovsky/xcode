@@ -44,10 +44,7 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
-        Parser {
-            input: input.as_bytes(),
-            pos: 0,
-        }
+        Parser { input: input.as_bytes(), pos: 0 }
     }
 
     #[inline]
@@ -105,10 +102,7 @@ impl<'a> Parser<'a> {
             Ok(())
         } else {
             let found = self.input.get(self.pos).map(|&b| b as char);
-            Err(format!(
-                "Expected '{}' at offset {}, got {:?}",
-                expected as char, self.pos, found
-            ))
+            Err(format!("Expected '{}' at offset {}, got {:?}", expected as char, self.pos, found))
         }
     }
 
@@ -213,10 +207,7 @@ impl<'a> Parser<'a> {
         match self.input.get(self.pos) {
             Some(b'"') | Some(b'\'') => self.read_quoted_string_cow(),
             Some(&b) if IS_LITERAL_CHAR[b as usize] => Ok(Cow::Borrowed(self.read_string_literal_ref())),
-            Some(&b) => Err(format!(
-                "Expected identifier at offset {}, got '{}'",
-                self.pos, b as char
-            )),
+            Some(&b) => Err(format!("Expected identifier at offset {}, got '{}'", self.pos, b as char)),
             None => Err(format!("Expected identifier at offset {}, got EOF", self.pos)),
         }
     }
@@ -286,10 +277,7 @@ impl<'a> Parser<'a> {
                 let s = self.read_string_literal_ref();
                 Ok(parse_type(s))
             }
-            Some(b) => Err(format!(
-                "Unexpected character '{}' (0x{:02x}) at offset {}",
-                b as char, b, self.pos
-            )),
+            Some(b) => Err(format!("Unexpected character '{}' (0x{:02x}) at offset {}", b as char, b, self.pos)),
             None => Err("Unexpected EOF in value".to_string()),
         }
     }
@@ -333,11 +321,7 @@ fn parse_type<'a>(literal: &'a str) -> PlistValue<'a> {
     }
 
     // Decimal number check: only if contains '.'
-    let s = if first == b'+' || first == b'-' {
-        &literal[1..]
-    } else {
-        literal
-    };
+    let s = if first == b'+' || first == b'-' { &literal[1..] } else { literal };
     if let Some(dot_pos) = s.as_bytes().iter().position(|&b| b == b'.') {
         let int_part = &s[..dot_pos];
         let frac_part = &s[dot_pos + 1..];
@@ -456,10 +440,7 @@ mod tests {
     fn test_parse_large_uuid_as_string() {
         let input = "{ id = 13B07F961A680F5B00A75B9A; }";
         let result = parse(input).unwrap();
-        assert_eq!(
-            result.get("id").and_then(|v| v.as_str()),
-            Some("13B07F961A680F5B00A75B9A")
-        );
+        assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("13B07F961A680F5B00A75B9A"));
     }
 
     #[test]

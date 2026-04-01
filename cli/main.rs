@@ -7,10 +7,7 @@ mod output;
 mod resolve;
 
 #[derive(Parser)]
-#[command(
-    name = "xcodekit",
-    about = "Native Xcode project automation for AI agents, CI, and developer tooling"
-)]
+#[command(name = "xcodekit", about = "Native Xcode project automation for AI agents, CI, and developer tooling")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -23,6 +20,8 @@ enum Command {
         #[command(subcommand)]
         action: commands::project::ProjectAction,
     },
+    /// Execute multiple operations in a single parse/save cycle
+    Batch(commands::batch::BatchArgs),
     /// List, show, rename, and create targets
     Target {
         #[command(subcommand)]
@@ -94,6 +93,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
+        Command::Batch(args) => commands::batch::run(args),
         Command::Project { action } => commands::project::run(action),
         Command::Target { action } => commands::target::run(action),
         Command::Build { action } => commands::build_setting::run(action),

@@ -22,7 +22,8 @@ pub enum DoctorAction {
 pub fn run(action: DoctorAction) -> Result<(), CliError> {
     match action {
         DoctorAction::Orphans { path, json } => {
-            let project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let orphans = project.find_orphaned_references();
 
             if json {
@@ -46,17 +47,15 @@ pub fn run(action: DoctorAction) -> Result<(), CliError> {
             } else {
                 println!("Found {} orphaned reference(s):", orphans.len());
                 for o in &orphans {
-                    println!(
-                        "  {} > {}.{} > {}",
-                        o.referrer_uuid, o.referrer_isa, o.property, o.orphan_uuid
-                    );
+                    println!("  {} > {}.{} > {}", o.referrer_uuid, o.referrer_isa, o.property, o.orphan_uuid);
                 }
             }
             Ok(())
         }
 
         DoctorAction::Summary { path, json } => {
-            let project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let orphans = project.find_orphaned_references();
             let target_count = project.native_targets().len();
             let object_count = project.objects().count();

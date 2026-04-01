@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use xcodekit::project::XcodeProject;
 
-use crate::output::{self, CliError};
+use crate::output::{self, CliError, ErrorCode};
 
 #[derive(Subcommand)]
 pub enum ProjectAction {
@@ -101,11 +101,7 @@ fn inspect(path: &str, json: bool) -> Result<(), CliError> {
         println!();
         println!("Targets:");
         for t in &targets {
-            println!(
-                "  {} ({})",
-                t["name"].as_str().unwrap_or(""),
-                t["productType"].as_str().unwrap_or("")
-            );
+            println!("  {} ({})", t["name"].as_str().unwrap_or(""), t["productType"].as_str().unwrap_or(""));
         }
     }
 
@@ -164,10 +160,7 @@ fn health(path: &str, json: bool) -> Result<(), CliError> {
     } else {
         println!("Found {} orphaned reference(s):", orphans.len());
         for o in &orphans {
-            println!(
-                "  {} > {}.{} > {}",
-                o.referrer_uuid, o.referrer_isa, o.property, o.orphan_uuid
-            );
+            println!("  {} > {}.{} > {}", o.referrer_uuid, o.referrer_isa, o.property, o.orphan_uuid);
         }
     }
 
@@ -177,7 +170,7 @@ fn health(path: &str, json: bool) -> Result<(), CliError> {
 fn dump(path: &str) -> Result<(), CliError> {
     let content = std::fs::read_to_string(path).map_err(|_| CliError::file_not_found(path))?;
     let plist = xcodekit::parser::parse(&content).map_err(|e| CliError::parse_error(&e))?;
-    let json = serde_json::to_value(&plist).map_err(|e| CliError::new("SERIALIZE_ERROR", e.to_string()))?;
+    let json = serde_json::to_value(&plist).map_err(|e| CliError::new(ErrorCode::SerializeError, e.to_string()))?;
     output::print_json(&json);
     Ok(())
 }

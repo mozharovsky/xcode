@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::Read;
 use std::path::Path;
 
@@ -18,7 +19,7 @@ pub fn read_project_input(path: &str) -> Result<(String, String), CliError> {
         let mut content = String::new();
         std::io::stdin()
             .read_to_string(&mut content)
-            .map_err(|e| CliError::new("STDIN_ERROR", format!("Failed to read stdin: {}", e)))?;
+            .map_err(|e| CliError::new(ErrorCode::StdinError, format!("Failed to read stdin: {}", e)))?;
         Ok(("<stdin>".to_string(), content))
     } else {
         let resolved = normalize_project_path(path);
@@ -28,53 +29,92 @@ pub fn read_project_input(path: &str) -> Result<(String, String), CliError> {
 }
 
 pub fn print_json<T: Serialize>(value: &T) {
-    println!(
-        "{}",
-        serde_json::to_string_pretty(value).unwrap_or_else(|_| "{}".to_string())
-    );
+    println!("{}", serde_json::to_string_pretty(value).unwrap_or_else(|_| "{}".to_string()));
 }
 
 pub fn print_error(err: &CliError) {
     let json = serde_json::json!({
         "error": {
-            "code": err.code,
+            "code": err.code.to_string(),
             "message": err.message,
         }
     });
     eprintln!("{}", serde_json::to_string_pretty(&json).unwrap());
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ErrorCode {
+    FileNotFound,
+    ParseError,
+    TargetNotFound,
+    GroupNotFound,
+    ObjectNotFound,
+    WriteFailed,
+    AddFailed,
+    RemoveFailed,
+    CreateFailed,
+    DuplicateFailed,
+    PhaseFailed,
+    EmbedFailed,
+    StdinError,
+    SerializeError,
+    BuildError,
+    PackageNotFound,
+    AmbiguousReference,
+}
+
+impl fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::FileNotFound => "FILE_NOT_FOUND",
+            Self::ParseError => "PARSE_ERROR",
+            Self::TargetNotFound => "TARGET_NOT_FOUND",
+            Self::GroupNotFound => "GROUP_NOT_FOUND",
+            Self::ObjectNotFound => "OBJECT_NOT_FOUND",
+            Self::WriteFailed => "WRITE_FAILED",
+            Self::AddFailed => "ADD_FAILED",
+            Self::RemoveFailed => "REMOVE_FAILED",
+            Self::CreateFailed => "CREATE_FAILED",
+            Self::DuplicateFailed => "DUPLICATE_FAILED",
+            Self::PhaseFailed => "PHASE_FAILED",
+            Self::EmbedFailed => "EMBED_FAILED",
+            Self::StdinError => "STDIN_ERROR",
+            Self::SerializeError => "SERIALIZE_ERROR",
+            Self::BuildError => "BUILD_ERROR",
+            Self::PackageNotFound => "PACKAGE_NOT_FOUND",
+            Self::AmbiguousReference => "AMBIGUOUS_REFERENCE",
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct CliError {
-    pub code: String,
+    pub code: ErrorCode,
     pub message: String,
 }
 
 impl CliError {
-    pub fn new(code: &str, message: impl Into<String>) -> Self {
-        CliError {
-            code: code.to_string(),
-            message: message.into(),
-        }
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        CliError { code, message: message.into() }
     }
 
     pub fn file_not_found(path: &str) -> Self {
-        Self::new("FILE_NOT_FOUND", format!("File not found: {}", path))
+        Self::new(ErrorCode::FileNotFound, format!("File not found: {}", path))
     }
 
     pub fn parse_error(detail: &str) -> Self {
-        Self::new("PARSE_ERROR", format!("Failed to parse project: {}", detail))
+        Self::new(ErrorCode::ParseError, format!("Failed to parse project: {}", detail))
     }
 
     pub fn target_not_found(query: &str) -> Self {
-        Self::new("TARGET_NOT_FOUND", format!("Target '{}' was not found", query))
+        Self::new(ErrorCode::TargetNotFound, format!("Target '{}' was not found", query))
     }
 
     pub fn group_not_found(query: &str) -> Self {
-        Self::new("GROUP_NOT_FOUND", format!("Group '{}' was not found", query))
+        Self::new(ErrorCode::GroupNotFound, format!("Group '{}' was not found", query))
     }
 
     pub fn object_not_found(uuid: &str) -> Self {
-        Self::new("OBJECT_NOT_FOUND", format!("Object '{}' was not found", uuid))
+        Self::new(ErrorCode::ObjectNotFound, format!("Object '{}' was not found", uuid))
     }
 }

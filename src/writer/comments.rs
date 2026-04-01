@@ -113,16 +113,12 @@ fn get_pbx_build_file_comment<'a>(
     cache: &mut HashMap<String, String>,
 ) -> Option<String> {
     let build_phase_name = if let Some(&(isa, name)) = file_to_phase.get(id) {
-        name.map(|n| n.to_string())
-            .unwrap_or_else(|| get_default_build_phase_name(isa).unwrap_or_default())
+        name.map(|n| n.to_string()).unwrap_or_else(|| get_default_build_phase_name(isa).unwrap_or_default())
     } else {
         "[missing build phase]".to_string()
     };
 
-    let ref_id = build_file
-        .get("fileRef")
-        .or_else(|| build_file.get("productRef"))
-        .and_then(|v| v.as_str());
+    let ref_id = build_file.get("fileRef").or_else(|| build_file.get("productRef")).and_then(|v| v.as_str());
 
     let name = if let Some(ref_id) = ref_id {
         if let Some(ref_obj) = objects.get(ref_id) {
@@ -245,31 +241,16 @@ mod tests {
 
     #[test]
     fn test_default_build_phase_name() {
-        assert_eq!(
-            get_default_build_phase_name("PBXSourcesBuildPhase"),
-            Some("Sources".to_string())
-        );
-        assert_eq!(
-            get_default_build_phase_name("PBXFrameworksBuildPhase"),
-            Some("Frameworks".to_string())
-        );
-        assert_eq!(
-            get_default_build_phase_name("PBXResourcesBuildPhase"),
-            Some("Resources".to_string())
-        );
+        assert_eq!(get_default_build_phase_name("PBXSourcesBuildPhase"), Some("Sources".to_string()));
+        assert_eq!(get_default_build_phase_name("PBXFrameworksBuildPhase"), Some("Frameworks".to_string()));
+        assert_eq!(get_default_build_phase_name("PBXResourcesBuildPhase"), Some("Resources".to_string()));
         assert_eq!(get_default_build_phase_name("PBXProject"), None);
     }
 
     #[test]
     fn test_repo_name_from_url() {
-        assert_eq!(
-            get_repo_name_from_url("https://github.com/expo/spm-package"),
-            "spm-package"
-        );
+        assert_eq!(get_repo_name_from_url("https://github.com/expo/spm-package"), "spm-package");
         assert_eq!(get_repo_name_from_url("https://github.com/user/repo.git"), "repo");
-        assert_eq!(
-            get_repo_name_from_url("https://example.com/custom"),
-            "https://example.com/custom"
-        );
+        assert_eq!(get_repo_name_from_url("https://example.com/custom"), "https://example.com/custom");
     }
 }

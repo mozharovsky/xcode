@@ -79,26 +79,11 @@ fn main() {
         });
 
         println!("─ {} ({}) ─", fixture, size);
-        println!(
-            "  Lex:        {:>7.3} ms  ({:.0} MB/s)",
-            lex_med,
-            mb / (lex_med / 1000.0)
-        );
-        println!(
-            "  Parse:      {:>7.3} ms  ({:.0} MB/s)",
-            parse_med,
-            mb / (parse_med / 1000.0)
-        );
-        println!(
-            "  Build:      {:>7.3} ms  ({:.0} MB/s)",
-            build_med,
-            mb / (build_med / 1000.0)
-        );
+        println!("  Lex:        {:>7.3} ms  ({:.0} MB/s)", lex_med, mb / (lex_med / 1000.0));
+        println!("  Parse:      {:>7.3} ms  ({:.0} MB/s)", parse_med, mb / (parse_med / 1000.0));
+        println!("  Build:      {:>7.3} ms  ({:.0} MB/s)", build_med, mb / (build_med / 1000.0));
         println!("  Round-trip: {:>7.3} ms  ({:.0} MB/s)", rt_med, mb / (rt_med / 1000.0));
-        println!(
-            "  JSON deser: {:>7.3} ms  (serde_json::from_str → PlistValue)",
-            json_deser_med,
-        );
+        println!("  JSON deser: {:>7.3} ms  (serde_json::from_str → PlistValue)", json_deser_med,);
         println!("  JSON→build: {:>7.3} ms  (serde deser + build)", json_deser_build_med,);
         println!();
     }

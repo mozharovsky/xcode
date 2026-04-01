@@ -1,6 +1,6 @@
 use clap::Subcommand;
 
-use crate::output::{self, CliError};
+use crate::output::{self, CliError, ErrorCode};
 
 #[derive(Subcommand)]
 pub enum PlistAction {
@@ -23,22 +23,19 @@ pub enum PlistAction {
 pub fn run(action: PlistAction) -> Result<(), CliError> {
     match action {
         PlistAction::Parse { path } => {
-            let content =
-                std::fs::read_to_string(&path).map_err(|_| CliError::file_not_found(&path))?;
-            let value = xcodekit::plist_xml::parse_plist(&content)
-                .map_err(|e| CliError::new("PARSE_ERROR", e))?;
+            let content = std::fs::read_to_string(&path).map_err(|_| CliError::file_not_found(&path))?;
+            let value =
+                xcodekit::plist_xml::parse_plist(&content).map_err(|e| CliError::new(ErrorCode::ParseError, e))?;
             output::print_json(&value);
             Ok(())
         }
         PlistAction::Build { input, output: out } => {
-            let json_str =
-                std::fs::read_to_string(&input).map_err(|_| CliError::file_not_found(&input))?;
+            let json_str = std::fs::read_to_string(&input).map_err(|_| CliError::file_not_found(&input))?;
             let value: serde_json::Value = serde_json::from_str(&json_str)
-                .map_err(|e| CliError::new("PARSE_ERROR", format!("Invalid JSON: {}", e)))?;
-            let plist_str = xcodekit::plist_xml::build_plist(&value)
-                .map_err(|e| CliError::new("BUILD_ERROR", e))?;
-            std::fs::write(&out, plist_str)
-                .map_err(|e| CliError::new("WRITE_FAILED", e.to_string()))?;
+                .map_err(|e| CliError::new(ErrorCode::ParseError, format!("Invalid JSON: {}", e)))?;
+            let plist_str =
+                xcodekit::plist_xml::build_plist(&value).map_err(|e| CliError::new(ErrorCode::BuildError, e))?;
+            std::fs::write(&out, plist_str).map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))?;
             println!("Written to {}", out);
             Ok(())
         }

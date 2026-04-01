@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use xcodekit::project::XcodeProject;
 
-use crate::output::{self, CliError};
+use crate::output::{self, CliError, ErrorCode};
 
 #[derive(Subcommand)]
 pub enum ObjectAction {
@@ -53,11 +53,14 @@ pub enum ObjectAction {
 pub fn run(action: ObjectAction) -> Result<(), CliError> {
     match action {
         ObjectAction::Get { path, uuid, json } => {
-            let project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let obj = project.get_object(&uuid).ok_or_else(|| CliError::object_not_found(&uuid))?;
 
             if json {
-                let props: serde_json::Map<String, serde_json::Value> = obj.props.iter()
+                let props: serde_json::Map<String, serde_json::Value> = obj
+                    .props
+                    .iter()
                     .map(|(k, v)| (k.to_string(), serde_json::to_value(v).unwrap_or_default()))
                     .collect();
                 output::print_json(&serde_json::json!({
@@ -75,7 +78,8 @@ pub fn run(action: ObjectAction) -> Result<(), CliError> {
         }
 
         ObjectAction::GetProperty { path, uuid, key, json } => {
-            let project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let value = project.get_object_property(&uuid, &key);
 
             if json {
@@ -94,7 +98,8 @@ pub fn run(action: ObjectAction) -> Result<(), CliError> {
         }
 
         ObjectAction::SetProperty { path, uuid, key, value, write, json } => {
-            let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let ok = project.set_object_property(&uuid, &key, &value);
 
             if !ok {
@@ -103,26 +108,28 @@ pub fn run(action: ObjectAction) -> Result<(), CliError> {
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())
-                    .map_err(|e| CliError::new("WRITE_FAILED", e.to_string()))?;
+                    .map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))?;
             }
 
             if json {
                 output::print_json(&serde_json::json!({ "changed": write }));
             } else {
-                println!("Set {}.{} = {}{}", uuid, key, value,
-                    if write { "" } else { " (dry-run)" });
+                println!("Set {}.{} = {}{}", uuid, key, value, if write { "" } else { " (dry-run)" });
             }
             Ok(())
         }
 
         ObjectAction::ListByIsa { path, isa, json } => {
-            let project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
             let uuids = project.find_objects_by_isa(&isa);
 
             if json {
-                let entries: Vec<_> = uuids.iter()
+                let entries: Vec<_> = uuids
+                    .iter()
                     .map(|u| {
-                        let name = project.get_object(u)
+                        let name = project
+                            .get_object(u)
                             .and_then(|o| o.get_str("name").or(o.get_str("path")))
                             .unwrap_or("")
                             .to_string();
@@ -132,9 +139,8 @@ pub fn run(action: ObjectAction) -> Result<(), CliError> {
                 output::print_json(&serde_json::json!({ "objects": entries }));
             } else {
                 for u in &uuids {
-                    let name = project.get_object(u)
-                        .and_then(|o| o.get_str("name").or(o.get_str("path")))
-                        .unwrap_or("");
+                    let name =
+                        project.get_object(u).and_then(|o| o.get_str("name").or(o.get_str("path"))).unwrap_or("");
                     println!("{} {}", u, name);
                 }
             }

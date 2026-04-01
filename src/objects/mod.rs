@@ -77,8 +77,7 @@ impl PbxObject {
 
     /// Set a string property.
     pub fn set_str(&mut self, key: &str, value: &str) {
-        self.props
-            .insert(Cow::Owned(key.to_string()), PlistValue::String(Cow::Owned(value.to_string())));
+        self.props.insert(Cow::Owned(key.to_string()), PlistValue::String(Cow::Owned(value.to_string())));
     }
 
     /// Set an integer property.
@@ -99,13 +98,9 @@ impl PbxObject {
     /// Get properties that are known to contain UUID references, based on ISA type.
     pub fn reference_keys(&self) -> Vec<&str> {
         match self.isa.as_str() {
-            "PBXProject" => vec![
-                "buildConfigurationList",
-                "mainGroup",
-                "productRefGroup",
-                "targets",
-                "packageReferences",
-            ],
+            "PBXProject" => {
+                vec!["buildConfigurationList", "mainGroup", "productRefGroup", "targets", "packageReferences"]
+            }
             "PBXNativeTarget" | "PBXAggregateTarget" | "PBXLegacyTarget" => vec![
                 "buildConfigurationList",
                 "dependencies",

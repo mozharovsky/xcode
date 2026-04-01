@@ -15,10 +15,7 @@ pub struct WriterOptions {
 
 impl Default for WriterOptions {
     fn default() -> Self {
-        WriterOptions {
-            tab: "\t".to_string(),
-            shebang: "!$*UTF8*$!".to_string(),
-        }
+        WriterOptions { tab: "\t".to_string(), shebang: "!$*UTF8*$!".to_string() }
     }
 }
 
@@ -230,11 +227,7 @@ impl Writer {
     }
 
     fn write_object_inclusive(&mut self, key: &str, value: &PlistObject<'_>) {
-        let isa = value
-            .iter()
-            .find(|(k, _)| k.as_ref() == "isa")
-            .and_then(|(_, v)| v.as_str())
-            .unwrap_or("");
+        let isa = value.iter().find(|(k, _)| k.as_ref() == "isa").and_then(|(_, v)| v.as_str()).unwrap_or("");
         if is_pbx_build_file(isa) || is_pbx_file_reference(isa) {
             self.write_object_inline(key, value);
             return;
@@ -390,8 +383,7 @@ fn is_safe_unquoted(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
-    s.bytes()
-        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$' || b == b'/' || b == b':' || b == b'.')
+    s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$' || b == b'/' || b == b':' || b == b'.')
 }
 
 /// Check if a string contains characters that need escaping.

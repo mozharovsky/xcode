@@ -50,11 +50,7 @@ where
                 // Split variable name from transformations
                 let parts: Vec<&str> = inner.splitn(2, ':').collect();
                 let variable = parts[0];
-                let transformations: Vec<&str> = if parts.len() > 1 {
-                    parts[1].split(':').collect()
-                } else {
-                    vec![]
-                };
+                let transformations: Vec<&str> = if parts.len() > 1 { parts[1].split(':').collect() } else { vec![] };
 
                 // Look up the variable
                 let mut resolved = lookup(variable);
@@ -93,39 +89,19 @@ fn apply_transform(value: &str, modifier: &str) -> String {
     match modifier {
         "lower" => value.to_lowercase(),
         "upper" => value.to_uppercase(),
-        "suffix" => Path::new(value)
-            .extension()
-            .map(|ext| format!(".{}", ext.to_string_lossy()))
-            .unwrap_or_default(),
-        "file" => Path::new(value)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        "dir" => Path::new(value)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        "base" => Path::new(value)
-            .file_stem()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        "rfc1034identifier" => value
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect(),
-        "c99extidentifier" => value
-            .chars()
-            .map(|c| if c == '-' || c == ' ' { '_' } else { c })
-            .collect(),
+        "suffix" => Path::new(value).extension().map(|ext| format!(".{}", ext.to_string_lossy())).unwrap_or_default(),
+        "file" => Path::new(value).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        "dir" => Path::new(value).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+        "base" => Path::new(value).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        "rfc1034identifier" => value.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect(),
+        "c99extidentifier" => value.chars().map(|c| if c == '-' || c == ' ' { '_' } else { c }).collect(),
         "standardizepath" => {
             if value.is_empty() {
                 String::new()
             } else {
                 // Approximate: resolve the path
                 let path = Path::new(value);
-                path.canonicalize()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| value.to_string())
+                path.canonicalize().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| value.to_string())
             }
         }
         other => {

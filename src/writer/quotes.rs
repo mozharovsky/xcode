@@ -47,8 +47,7 @@ fn is_safe_unquoted(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
-    s.bytes()
-        .all(|b| matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'$' | b'/' | b':' | b'.'))
+    s.bytes().all(|b| matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'$' | b'/' | b':' | b'.'))
 }
 
 /// Format binary data as a hex data literal.

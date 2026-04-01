@@ -4,7 +4,9 @@ fn plist_fixture() -> String {
     let dir = FIXTURES_DIR;
     let path = format!("{}/test_info.plist", dir);
     if !std::path::Path::new(&path).exists() {
-        std::fs::write(&path, r#"<?xml version="1.0" encoding="UTF-8"?>
+        std::fs::write(
+            &path,
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -13,7 +15,9 @@ fn plist_fixture() -> String {
 	<key>CFBundleVersion</key>
 	<string>1</string>
 </dict>
-</plist>"#).unwrap();
+</plist>"#,
+        )
+        .unwrap();
     }
     path
 }

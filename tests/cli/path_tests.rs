@@ -4,11 +4,7 @@ use super::*;
 fn xcodeproj_directory_resolves() {
     let xcodeproj_dir = format!("{}/test.xcodeproj", FIXTURES_DIR);
     let _ = std::fs::create_dir(&xcodeproj_dir);
-    std::fs::copy(
-        format!("{}/project.pbxproj", FIXTURES_DIR),
-        format!("{}/project.pbxproj", xcodeproj_dir),
-    )
-    .unwrap();
+    std::fs::copy(format!("{}/project.pbxproj", FIXTURES_DIR), format!("{}/project.pbxproj", xcodeproj_dir)).unwrap();
 
     let out = xcodekit(&["project", "inspect", &xcodeproj_dir, "--json"]);
     assert!(out.status.success());
