@@ -45,9 +45,7 @@ pub fn run(action: GroupAction) -> Result<(), CliError> {
             let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
                 .map_err(|e| CliError::parse_error(&e))?;
             let parent_uuid = resolve_group(&project, &parent)?;
-            let uuid = project
-                .add_group(&parent_uuid, &name)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add group"))?;
+            let uuid = project.add_group(&parent_uuid, &name).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())
@@ -66,11 +64,7 @@ pub fn run(action: GroupAction) -> Result<(), CliError> {
             let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
                 .map_err(|e| CliError::parse_error(&e))?;
             let group_uuid = resolve_group(&project, &group)?;
-            let changed = project.remove_group(&group_uuid);
-
-            if !changed {
-                return Err(CliError::new(ErrorCode::RemoveFailed, format!("Failed to remove group '{}'", group)));
-            }
+            project.remove_group(&group_uuid).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
 
             if write {
                 let resolved = crate::output::normalize_project_path(&path);
@@ -79,7 +73,7 @@ pub fn run(action: GroupAction) -> Result<(), CliError> {
             }
 
             if json {
-                output::print_json(&serde_json::json!({ "changed": changed }));
+                output::print_json(&serde_json::json!({ "changed": true }));
             } else {
                 println!("Removed group '{}'{}", group, if write { "" } else { " (dry-run)" });
             }

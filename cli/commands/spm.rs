@@ -95,9 +95,8 @@ pub fn run(action: SpmAction) -> Result<(), CliError> {
     match action {
         SpmAction::AddRemote { path, url, version, write, json } => {
             let mut project = open(&path)?;
-            let uuid = project
-                .add_remote_swift_package(&url, &version)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add package"))?;
+            let uuid =
+                project.add_remote_swift_package(&url, &version).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -119,9 +118,8 @@ pub fn run(action: SpmAction) -> Result<(), CliError> {
 
         SpmAction::AddLocal { path, package_path, write, json } => {
             let mut project = open(&path)?;
-            let uuid = project
-                .add_local_swift_package(&package_path)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add package"))?;
+            let uuid =
+                project.add_local_swift_package(&package_path).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -141,7 +139,7 @@ pub fn run(action: SpmAction) -> Result<(), CliError> {
             let package_uuid = resolve_package(&project, &package)?;
             let uuid = project
                 .add_swift_package_product(&target_uuid, &product, &package_uuid)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add product"))?;
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -164,21 +162,16 @@ pub fn run(action: SpmAction) -> Result<(), CliError> {
         SpmAction::RemoveProduct { path, target, product, write, json } => {
             let mut project = open(&path)?;
             let target_uuid = resolve_target(&project, &target)?;
-            let changed = project.remove_swift_package_product(&target_uuid, &product);
-
-            if !changed {
-                return Err(CliError::new(
-                    ErrorCode::RemoveFailed,
-                    format!("Product '{}' not found on target '{}'", product, target),
-                ));
-            }
+            project
+                .remove_swift_package_product(&target_uuid, &product)
+                .map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
 
             if write {
                 save(&project, &path)?;
             }
 
             if json {
-                output::print_json(&serde_json::json!({ "changed": changed }));
+                output::print_json(&serde_json::json!({ "changed": true }));
             } else {
                 println!(
                     "Removed product '{}' from target '{}'{}",

@@ -27,9 +27,8 @@ pub fn run(action: ExtensionAction) -> Result<(), CliError> {
                 .map_err(|e| CliError::parse_error(&e))?;
             let host_uuid = resolve_target(&project, &host)?;
             let ext_uuid = resolve_target(&project, &extension)?;
-            let uuid = project
-                .embed_extension(&host_uuid, &ext_uuid)
-                .ok_or_else(|| CliError::new(ErrorCode::EmbedFailed, "Failed to embed extension"))?;
+            let uuid =
+                project.embed_extension(&host_uuid, &ext_uuid).map_err(|e| CliError::new(ErrorCode::EmbedFailed, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())

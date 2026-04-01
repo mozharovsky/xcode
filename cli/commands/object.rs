@@ -100,11 +100,9 @@ pub fn run(action: ObjectAction) -> Result<(), CliError> {
         ObjectAction::SetProperty { path, uuid, key, value, write, json } => {
             let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
                 .map_err(|e| CliError::parse_error(&e))?;
-            let ok = project.set_object_property(&uuid, &key, &value);
-
-            if !ok {
-                return Err(CliError::object_not_found(&uuid));
-            }
+            project
+                .set_object_property(&uuid, &key, &value)
+                .map_err(|e| CliError::new(ErrorCode::ObjectNotFound, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())

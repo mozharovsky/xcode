@@ -26,9 +26,8 @@ pub fn run(action: FrameworkAction) -> Result<(), CliError> {
             let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
                 .map_err(|e| CliError::parse_error(&e))?;
             let target_uuid = resolve_target(&project, &target)?;
-            let uuid = project
-                .add_framework(&target_uuid, &name)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add framework"))?;
+            let uuid =
+                project.add_framework(&target_uuid, &name).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())

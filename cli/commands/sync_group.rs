@@ -51,7 +51,7 @@ fn run_group(action: SyncGroupAction) -> Result<(), CliError> {
             let target_uuid = resolve_target(&project, &target)?;
             let uuid = project
                 .add_file_system_sync_group(&target_uuid, &sync_path)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add sync group"))?;
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())

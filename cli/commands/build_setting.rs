@@ -152,7 +152,9 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
         SettingAction::Set { path, target, key, value, write, json } => {
             let mut project = open(&path)?;
             let uuid = resolve_target(&project, &target)?;
-            project.set_build_setting(&uuid, &key, PlistValue::String(Cow::Owned(value.clone())));
+            project
+                .set_build_setting(&uuid, &key, PlistValue::String(Cow::Owned(value.clone())))
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -169,7 +171,7 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
         SettingAction::Remove { path, target, key, write, json } => {
             let mut project = open(&path)?;
             let uuid = resolve_target(&project, &target)?;
-            project.remove_build_setting(&uuid, &key);
+            project.remove_build_setting(&uuid, &key).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -191,9 +193,8 @@ fn run_phase(action: PhaseAction) -> Result<(), CliError> {
             let mut project = open(&path)?;
             let target_uuid = resolve_target(&project, &target)?;
             let isa = phase_type.as_isa();
-            let uuid = project
-                .ensure_build_phase(&target_uuid, isa)
-                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to ensure build phase"))?;
+            let uuid =
+                project.ensure_build_phase(&target_uuid, isa).map_err(|e| CliError::new(ErrorCode::PhaseFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -212,7 +213,7 @@ fn run_phase(action: PhaseAction) -> Result<(), CliError> {
             let target_uuid = resolve_target(&project, &target)?;
             let uuid = project
                 .add_run_script_phase(&target_uuid, &name, &script, Some(&shell))
-                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to add run script phase"))?;
+                .map_err(|e| CliError::new(ErrorCode::PhaseFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -228,9 +229,7 @@ fn run_phase(action: PhaseAction) -> Result<(), CliError> {
 
         PhaseAction::AddFile { path, phase, file_ref, write, json } => {
             let mut project = open(&path)?;
-            let uuid = project
-                .add_build_file(&phase, &file_ref)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add build file"))?;
+            let uuid = project.add_build_file(&phase, &file_ref).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;

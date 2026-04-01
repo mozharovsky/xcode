@@ -148,7 +148,9 @@ pub fn run(action: TargetAction) -> Result<(), CliError> {
             let uuid = resolve_target(&project, &target)?;
             let old_name = project.get_target_name(&uuid).unwrap_or_default();
 
-            project.rename_target(&uuid, &old_name, &new_name);
+            project
+                .rename_target(&uuid, &old_name, &new_name)
+                .map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -171,7 +173,7 @@ pub fn run(action: TargetAction) -> Result<(), CliError> {
             let mut project = open(&path)?;
             let uuid = project
                 .create_native_target(&name, &product_type, &bundle_id)
-                .ok_or_else(|| CliError::new(ErrorCode::CreateFailed, "Failed to create target"))?;
+                .map_err(|e| CliError::new(ErrorCode::CreateFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -193,9 +195,8 @@ pub fn run(action: TargetAction) -> Result<(), CliError> {
         TargetAction::Duplicate { path, target, new_name, write, json } => {
             let mut project = open(&path)?;
             let uuid = resolve_target(&project, &target)?;
-            let new_uuid = project
-                .duplicate_target(&uuid, &new_name)
-                .ok_or_else(|| CliError::new(ErrorCode::DuplicateFailed, "Failed to duplicate target"))?;
+            let new_uuid =
+                project.duplicate_target(&uuid, &new_name).map_err(|e| CliError::new(ErrorCode::DuplicateFailed, e))?;
 
             if write {
                 save(&project, &path)?;

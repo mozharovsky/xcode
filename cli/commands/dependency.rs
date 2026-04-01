@@ -27,9 +27,8 @@ pub fn run(action: DependencyAction) -> Result<(), CliError> {
                 .map_err(|e| CliError::parse_error(&e))?;
             let target_uuid = resolve_target(&project, &target)?;
             let dep_uuid = resolve_target(&project, &depends_on)?;
-            let uuid = project
-                .add_dependency(&target_uuid, &dep_uuid)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add dependency"))?;
+            let uuid =
+                project.add_dependency(&target_uuid, &dep_uuid).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 std::fs::write(&path, project.to_pbxproj())

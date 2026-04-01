@@ -44,9 +44,7 @@ pub fn run(action: FileAction) -> Result<(), CliError> {
         FileAction::Add { path, group, file_path, write, json } => {
             let mut project = open(&path)?;
             let group_uuid = resolve_group(&project, &group)?;
-            let uuid = project
-                .add_file(&group_uuid, &file_path)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add file"))?;
+            let uuid = project.add_file(&group_uuid, &file_path).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
 
             if write {
                 save(&project, &path)?;
@@ -64,18 +62,14 @@ pub fn run(action: FileAction) -> Result<(), CliError> {
             let mut project = open(&path)?;
 
             let file_uuid = resolve_file_ref(&project, &file)?;
-            let changed = project.remove_file(&file_uuid);
-
-            if !changed {
-                return Err(CliError::new(ErrorCode::RemoveFailed, format!("Failed to remove file '{}'", file)));
-            }
+            project.remove_file(&file_uuid).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
 
             if write {
                 save(&project, &path)?;
             }
 
             if json {
-                output::print_json(&serde_json::json!({ "changed": changed }));
+                output::print_json(&serde_json::json!({ "changed": true }));
             } else {
                 println!("Removed file '{}'{}", file, if write { "" } else { " (dry-run)" });
             }

@@ -153,109 +153,95 @@ fn execute(project: &mut XcodeProject, op: &Operation) -> Result<(), CliError> {
     match op {
         Operation::BuildSettingSet { target, key, value } => {
             let uuid = resolve_target(project, target)?;
-            project.set_build_setting(&uuid, key, PlistValue::String(Cow::Owned(value.clone())));
+            project
+                .set_build_setting(&uuid, key, PlistValue::String(Cow::Owned(value.clone())))
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::BuildSettingRemove { target, key } => {
             let uuid = resolve_target(project, target)?;
-            project.remove_build_setting(&uuid, key);
+            project.remove_build_setting(&uuid, key).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
             Ok(())
         }
         Operation::FileAdd { group, path } => {
             let uuid = resolve_group(project, group)?;
-            project.add_file(&uuid, path).ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add file"))?;
+            project.add_file(&uuid, path).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::FileRemove { file } => {
-            if !project.remove_file(file) {
-                return Err(CliError::new(ErrorCode::RemoveFailed, format!("File '{}' not found", file)));
-            }
+            project.remove_file(file).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
             Ok(())
         }
         Operation::GroupAdd { parent, name } => {
             let uuid = resolve_group(project, parent)?;
-            project.add_group(&uuid, name).ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add group"))?;
+            project.add_group(&uuid, name).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::GroupRemove { group } => {
             let uuid = resolve_group(project, group)?;
-            project.remove_group(&uuid);
+            project.remove_group(&uuid).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
             Ok(())
         }
         Operation::TargetRename { target, new_name } => {
             let uuid = resolve_target(project, target)?;
             let old_name = project.get_target_name(&uuid).unwrap_or_default();
-            project.rename_target(&uuid, &old_name, new_name);
+            project.rename_target(&uuid, &old_name, new_name).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
             Ok(())
         }
         Operation::TargetCreateNative { name, product_type, bundle_id } => {
             project
                 .create_native_target(name, product_type, bundle_id)
-                .ok_or_else(|| CliError::new(ErrorCode::CreateFailed, "Failed to create target"))?;
+                .map_err(|e| CliError::new(ErrorCode::CreateFailed, e))?;
             Ok(())
         }
         Operation::TargetDuplicate { target, new_name } => {
             let uuid = resolve_target(project, target)?;
-            project
-                .duplicate_target(&uuid, new_name)
-                .ok_or_else(|| CliError::new(ErrorCode::DuplicateFailed, "Failed to duplicate target"))?;
+            project.duplicate_target(&uuid, new_name).map_err(|e| CliError::new(ErrorCode::DuplicateFailed, e))?;
             Ok(())
         }
         Operation::DependencyAdd { target, depends_on } => {
             let t = resolve_target(project, target)?;
             let d = resolve_target(project, depends_on)?;
-            project
-                .add_dependency(&t, &d)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add dependency"))?;
+            project.add_dependency(&t, &d).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::ExtensionEmbed { host, extension } => {
             let h = resolve_target(project, host)?;
             let e = resolve_target(project, extension)?;
-            project
-                .embed_extension(&h, &e)
-                .ok_or_else(|| CliError::new(ErrorCode::EmbedFailed, "Failed to embed extension"))?;
+            project.embed_extension(&h, &e).map_err(|e| CliError::new(ErrorCode::EmbedFailed, e))?;
             Ok(())
         }
         Operation::FrameworkAdd { target, name } => {
             let uuid = resolve_target(project, target)?;
-            project
-                .add_framework(&uuid, name)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add framework"))?;
+            project.add_framework(&uuid, name).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::BuildPhaseEnsure { target, phase_type } => {
             let uuid = resolve_target(project, target)?;
             let isa = phase_type.as_isa();
-            project
-                .ensure_build_phase(&uuid, isa)
-                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to ensure build phase"))?;
+            project.ensure_build_phase(&uuid, isa).map_err(|e| CliError::new(ErrorCode::PhaseFailed, e))?;
             Ok(())
         }
         Operation::BuildPhaseAddScript { target, name, script, shell } => {
             let uuid = resolve_target(project, target)?;
             project
                 .add_run_script_phase(&uuid, name, script, Some(shell))
-                .ok_or_else(|| CliError::new(ErrorCode::PhaseFailed, "Failed to add run script phase"))?;
+                .map_err(|e| CliError::new(ErrorCode::PhaseFailed, e))?;
             Ok(())
         }
         Operation::SpmAddRemote { url, version } => {
-            project
-                .add_remote_swift_package(url, version)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add package"))?;
+            project.add_remote_swift_package(url, version).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::SpmAddLocal { path } => {
-            project
-                .add_local_swift_package(path)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add package"))?;
+            project.add_local_swift_package(path).map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
         Operation::SpmAddProduct { target, product, package } => {
             let uuid = resolve_target(project, target)?;
             project
                 .add_swift_package_product(&uuid, product, package)
-                .ok_or_else(|| CliError::new(ErrorCode::AddFailed, "Failed to add product"))?;
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
             Ok(())
         }
     }
