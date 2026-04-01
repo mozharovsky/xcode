@@ -18,6 +18,16 @@ pub enum GroupAction {
         #[arg(long)]
         json: bool,
     },
+    /// Remove a group from the project
+    Remove {
+        path: String,
+        #[arg(long)]
+        group: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
     /// List children of a group
     #[command(name = "list-children")]
     ListChildren {
@@ -46,6 +56,30 @@ pub fn run(action: GroupAction) -> Result<(), CliError> {
                 output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write }));
             } else {
                 println!("Added group '{}' ({}){}", name, uuid,
+                    if write { "" } else { " (dry-run)" });
+            }
+            Ok(())
+        }
+
+        GroupAction::Remove { path, group, write, json } => {
+            let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path)).map_err(|e| CliError::parse_error(&e))?;
+            let group_uuid = resolve_group(&project, &group)?;
+            let changed = project.remove_group(&group_uuid);
+
+            if !changed {
+                return Err(CliError::new("REMOVE_FAILED", format!("Failed to remove group '{}'", group)));
+            }
+
+            if write {
+                let resolved = crate::output::normalize_project_path(&path);
+                std::fs::write(&resolved, project.to_pbxproj())
+                    .map_err(|e| CliError::new("WRITE_FAILED", e.to_string()))?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "changed": changed }));
+            } else {
+                println!("Removed group '{}'{}", group,
                     if write { "" } else { " (dry-run)" });
             }
             Ok(())

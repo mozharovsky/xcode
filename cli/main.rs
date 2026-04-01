@@ -63,6 +63,16 @@ enum Command {
         #[command(subcommand)]
         action: commands::doctor::DoctorAction,
     },
+    /// Manage Swift Package Manager dependencies
+    Spm {
+        #[command(subcommand)]
+        action: commands::spm::SpmAction,
+    },
+    /// Parse and build plist files (entitlements, Info.plist)
+    Plist {
+        #[command(subcommand)]
+        action: commands::plist::PlistAction,
+    },
     /// Manage Xcode 16+ file system sync groups
     Sync {
         #[command(subcommand)]
@@ -93,6 +103,8 @@ fn main() {
         Command::Dependency { action } => commands::dependency::run(action),
         Command::Extension { action } => commands::extension::run(action),
         Command::Doctor { action } => commands::doctor::run(action),
+        Command::Spm { action } => commands::spm::run(action),
+        Command::Plist { action } => commands::plist::run(action),
         Command::Sync { action } => commands::sync_group::run(action),
         Command::Object { action } => commands::object::run(action),
         Command::Version { json } => {

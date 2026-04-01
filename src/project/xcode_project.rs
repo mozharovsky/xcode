@@ -535,6 +535,263 @@ impl XcodeProject {
         Some(group_uuid)
     }
 
+    /// Remove a file reference from the project.
+    /// Removes it from its parent group's children array and deletes the object.
+    /// Also removes any PBXBuildFile that references it.
+    pub fn remove_file(&mut self, file_ref_uuid: &str) -> bool {
+        if self.get_object(file_ref_uuid).is_none() {
+            return false;
+        }
+
+        // Remove from parent group children
+        let group_uuids: Vec<String> = self.objects_by_isa("PBXGroup")
+            .iter()
+            .chain(self.objects_by_isa("PBXVariantGroup").iter())
+            .filter(|g| {
+                g.get_array("children")
+                    .map(|c| c.iter().any(|v| v.as_str() == Some(file_ref_uuid)))
+                    .unwrap_or(false)
+            })
+            .map(|g| g.uuid.clone())
+            .collect();
+
+        for group_uuid in &group_uuids {
+            if let Some(group) = self.get_object_mut(group_uuid) {
+                if let Some(PlistValue::Array(ref mut children)) = group.props.get_mut("children") {
+                    children.retain(|v| v.as_str() != Some(file_ref_uuid));
+                }
+            }
+        }
+
+        // Remove any PBXBuildFile referencing this file
+        let build_file_uuids: Vec<String> = self.objects_by_isa("PBXBuildFile")
+            .iter()
+            .filter(|bf| bf.get_str("fileRef") == Some(file_ref_uuid))
+            .map(|bf| bf.uuid.clone())
+            .collect();
+
+        for bf_uuid in &build_file_uuids {
+            self.remove_object(bf_uuid);
+        }
+
+        self.remove_object(file_ref_uuid);
+        true
+    }
+
+    /// Remove a group from the project.
+    /// Removes it from its parent group's children array and deletes the group object.
+    /// Does NOT remove the group's children objects (files stay in the project).
+    pub fn remove_group(&mut self, group_uuid: &str) -> bool {
+        if self.get_object(group_uuid).is_none() {
+            return false;
+        }
+
+        // Remove from parent group children
+        let parent_uuids: Vec<String> = self.objects_by_isa("PBXGroup")
+            .iter()
+            .filter(|g| {
+                g.uuid != group_uuid
+                    && g.get_array("children")
+                        .map(|c| c.iter().any(|v| v.as_str() == Some(group_uuid)))
+                        .unwrap_or(false)
+            })
+            .map(|g| g.uuid.clone())
+            .collect();
+
+        for parent_uuid in &parent_uuids {
+            if let Some(parent) = self.get_object_mut(parent_uuid) {
+                if let Some(PlistValue::Array(ref mut children)) = parent.props.get_mut("children") {
+                    children.retain(|v| v.as_str() != Some(group_uuid));
+                }
+            }
+        }
+
+        self.remove_object(group_uuid);
+        true
+    }
+
+    // ── Swift Package Manager operations ─────────────────────────────
+
+    /// Add a remote Swift package reference to the project.
+    /// Returns the UUID of the new XCRemoteSwiftPackageReference.
+    pub fn add_remote_swift_package(&mut self, url: &str, version: &str) -> Option<String> {
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("XCRemoteSwiftPackageReference".to_string())));
+        props.insert(Cow::Owned("repositoryURL".to_string()), PlistValue::String(Cow::Owned(url.to_string())));
+
+        let requirement: PlistObject<'static> = vec![
+            (Cow::Owned("kind".to_string()), PlistValue::String(Cow::Owned("upToNextMajorVersion".to_string()))),
+            (Cow::Owned("minimumVersion".to_string()), PlistValue::String(Cow::Owned(version.to_string()))),
+        ];
+        props.insert(Cow::Owned("requirement".to_string()), PlistValue::Object(requirement));
+
+        let package_uuid = self.create_object(props);
+
+        let root_uuid = self.root_object_uuid.clone();
+        if let Some(root) = self.get_object_mut(&root_uuid) {
+            match root.props.get_mut("packageReferences") {
+                Some(PlistValue::Array(ref mut refs)) => {
+                    refs.push(PlistValue::String(Cow::Owned(package_uuid.clone())));
+                }
+                _ => {
+                    root.props.insert(
+                        Cow::Owned("packageReferences".to_string()),
+                        PlistValue::Array(vec![PlistValue::String(Cow::Owned(package_uuid.clone()))]),
+                    );
+                }
+            }
+        }
+
+        Some(package_uuid)
+    }
+
+    /// Add a local Swift package reference to the project.
+    /// Returns the UUID of the new XCLocalSwiftPackageReference.
+    pub fn add_local_swift_package(&mut self, relative_path: &str) -> Option<String> {
+        let mut props = PlistMap::default();
+        props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("XCLocalSwiftPackageReference".to_string())));
+        props.insert(Cow::Owned("relativePath".to_string()), PlistValue::String(Cow::Owned(relative_path.to_string())));
+
+        let package_uuid = self.create_object(props);
+
+        let root_uuid = self.root_object_uuid.clone();
+        if let Some(root) = self.get_object_mut(&root_uuid) {
+            match root.props.get_mut("packageReferences") {
+                Some(PlistValue::Array(ref mut refs)) => {
+                    refs.push(PlistValue::String(Cow::Owned(package_uuid.clone())));
+                }
+                _ => {
+                    root.props.insert(
+                        Cow::Owned("packageReferences".to_string()),
+                        PlistValue::Array(vec![PlistValue::String(Cow::Owned(package_uuid.clone()))]),
+                    );
+                }
+            }
+        }
+
+        Some(package_uuid)
+    }
+
+    /// Add a Swift package product dependency to a target.
+    /// Creates XCSwiftPackageProductDependency + PBXBuildFile, wires to target
+    /// and Frameworks build phase.
+    /// Returns the UUID of the XCSwiftPackageProductDependency.
+    pub fn add_swift_package_product(
+        &mut self,
+        target_uuid: &str,
+        product_name: &str,
+        package_uuid: &str,
+    ) -> Option<String> {
+        let mut dep_props = PlistMap::default();
+        dep_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("XCSwiftPackageProductDependency".to_string())));
+        dep_props.insert(Cow::Owned("package".to_string()), PlistValue::String(Cow::Owned(package_uuid.to_string())));
+        dep_props.insert(Cow::Owned("productName".to_string()), PlistValue::String(Cow::Owned(product_name.to_string())));
+
+        let dep_uuid = self.create_object(dep_props);
+
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            match target.props.get_mut("packageProductDependencies") {
+                Some(PlistValue::Array(ref mut deps)) => {
+                    deps.push(PlistValue::String(Cow::Owned(dep_uuid.clone())));
+                }
+                _ => {
+                    target.props.insert(
+                        Cow::Owned("packageProductDependencies".to_string()),
+                        PlistValue::Array(vec![PlistValue::String(Cow::Owned(dep_uuid.clone()))]),
+                    );
+                }
+            }
+        }
+
+        let mut bf_props = PlistMap::default();
+        bf_props.insert(Cow::Owned("isa".to_string()), PlistValue::String(Cow::Owned("PBXBuildFile".to_string())));
+        bf_props.insert(Cow::Owned("productRef".to_string()), PlistValue::String(Cow::Owned(dep_uuid.clone())));
+        let bf_uuid = self.create_object(bf_props);
+
+        let phase_uuid = self.ensure_build_phase(target_uuid, "PBXFrameworksBuildPhase")?;
+        if let Some(phase) = self.get_object_mut(&phase_uuid) {
+            if let Some(PlistValue::Array(ref mut files)) = phase.props.get_mut("files") {
+                files.push(PlistValue::String(Cow::Owned(bf_uuid)));
+            }
+        }
+
+        Some(dep_uuid)
+    }
+
+    /// Remove a Swift package product dependency from a target.
+    pub fn remove_swift_package_product(&mut self, target_uuid: &str, product_name: &str) -> bool {
+        let dep_uuid = {
+            let target = match self.get_object(target_uuid) {
+                Some(t) => t,
+                None => return false,
+            };
+            let deps = match target.props.get("packageProductDependencies") {
+                Some(PlistValue::Array(arr)) => arr,
+                _ => return false,
+            };
+            let mut found = None;
+            for dep_val in deps {
+                if let Some(uuid) = dep_val.as_str() {
+                    if let Some(dep_obj) = self.get_object(uuid) {
+                        if dep_obj.get_str("productName") == Some(product_name) {
+                            found = Some(uuid.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+            match found {
+                Some(u) => u,
+                None => return false,
+            }
+        };
+
+        if let Some(target) = self.get_object_mut(target_uuid) {
+            if let Some(PlistValue::Array(ref mut deps)) = target.props.get_mut("packageProductDependencies") {
+                deps.retain(|v| v.as_str() != Some(&dep_uuid));
+            }
+        }
+
+        let bf_uuids: Vec<String> = self.objects_by_isa("PBXBuildFile")
+            .iter()
+            .filter(|bf| bf.get_str("productRef") == Some(&dep_uuid))
+            .map(|bf| bf.uuid.clone())
+            .collect();
+        for bf in &bf_uuids {
+            self.remove_object(bf);
+        }
+
+        self.remove_object(&dep_uuid);
+        true
+    }
+
+    /// List all Swift package references in the project.
+    pub fn list_swift_packages(&self) -> Vec<(String, String, String)> {
+        let root = match self.root_object() {
+            Some(r) => r,
+            None => return vec![],
+        };
+        let refs = match root.get_array("packageReferences") {
+            Some(r) => r,
+            None => return vec![],
+        };
+
+        let mut result = Vec::new();
+        for ref_val in refs {
+            if let Some(uuid) = ref_val.as_str() {
+                if let Some(obj) = self.get_object(uuid) {
+                    let kind = obj.isa.clone();
+                    let location = obj.get_str("repositoryURL")
+                        .or_else(|| obj.get_str("relativePath"))
+                        .unwrap_or("")
+                        .to_string();
+                    result.push((uuid.to_string(), kind, location));
+                }
+            }
+        }
+        result
+    }
+
     // ── Build phase operations ─────────────────────────────────────
 
     /// Add a build file to a build phase (e.g. adding a source file to the Sources phase).

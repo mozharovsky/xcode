@@ -37,14 +37,19 @@ pub enum ProjectAction {
 }
 
 fn open_project(path: &str) -> Result<XcodeProject, CliError> {
-    let resolved = output::normalize_project_path(path);
-    XcodeProject::open(&resolved).map_err(|e| {
-        if e.contains("Failed to read") {
-            CliError::file_not_found(path)
-        } else {
-            CliError::parse_error(&e)
-        }
-    })
+    if path == "-" {
+        let (_, content) = output::read_project_input(path)?;
+        XcodeProject::from_plist(&content).map_err(|e| CliError::parse_error(&e))
+    } else {
+        let resolved = output::normalize_project_path(path);
+        XcodeProject::open(&resolved).map_err(|e| {
+            if e.contains("Failed to read") {
+                CliError::file_not_found(path)
+            } else {
+                CliError::parse_error(&e)
+            }
+        })
+    }
 }
 
 pub fn run(action: ProjectAction) -> Result<(), CliError> {

@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::Path;
 
 use serde::Serialize;
@@ -8,6 +9,22 @@ pub fn normalize_project_path(path: &str) -> String {
         format!("{}/project.pbxproj", path)
     } else {
         path.to_string()
+    }
+}
+
+/// Read project content from a path or stdin (when path is "-").
+pub fn read_project_input(path: &str) -> Result<(String, String), CliError> {
+    if path == "-" {
+        let mut content = String::new();
+        std::io::stdin()
+            .read_to_string(&mut content)
+            .map_err(|e| CliError::new("STDIN_ERROR", format!("Failed to read stdin: {}", e)))?;
+        Ok(("<stdin>".to_string(), content))
+    } else {
+        let resolved = normalize_project_path(path);
+        let content = std::fs::read_to_string(&resolved)
+            .map_err(|_| CliError::file_not_found(path))?;
+        Ok((resolved, content))
     }
 }
 
