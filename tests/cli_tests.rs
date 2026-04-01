@@ -473,6 +473,236 @@ mod version {
 
 // ── path normalization ─────────────────────────────────────────────
 
+// ── spm ────────────────────────────────────────────────────────────
+
+mod spm {
+    use super::*;
+
+    #[test]
+    fn list_on_spm_project() {
+        let out = xcodekit(&["spm", "list", &fixture("006-spm.pbxproj"), "--json"]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        let packages = json["packages"].as_array().unwrap();
+        assert!(!packages.is_empty());
+        assert!(packages[0]["location"].as_str().unwrap().contains("supabase"));
+    }
+
+    #[test]
+    fn list_on_non_spm_project() {
+        let out = xcodekit(&["spm", "list", &fixture("project.pbxproj"), "--json"]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert!(json["packages"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn add_remote_dry_run() {
+        let out = xcodekit(&[
+            "spm", "add-remote", &fixture("project.pbxproj"),
+            "--url", "https://github.com/apple/swift-collections",
+            "--version", "1.0.0",
+            "--json",
+        ]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert!(json["uuid"].is_string());
+        assert_eq!(json["changed"], true);
+    }
+
+    #[test]
+    fn add_local_dry_run() {
+        let out = xcodekit(&[
+            "spm", "add-local", &fixture("project.pbxproj"),
+            "--package-path", "../Packages/MyLib",
+            "--json",
+        ]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert!(json["uuid"].is_string());
+    }
+
+    #[test]
+    fn help() {
+        let out = xcodekit(&["spm", "--help"]);
+        assert!(out.status.success());
+        let text = stdout(&out);
+        assert!(text.contains("add-remote"));
+        assert!(text.contains("add-local"));
+        assert!(text.contains("add-product"));
+        assert!(text.contains("remove-product"));
+        assert!(text.contains("list"));
+    }
+}
+
+// ── plist ──────────────────────────────────────────────────────────
+
+mod plist {
+    use super::*;
+
+    fn plist_fixture() -> String {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        let path = format!("{}/test_info.plist", dir);
+        if !std::path::Path::new(&path).exists() {
+            std::fs::write(&path, r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>TestApp</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+</dict>
+</plist>"#).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn parse_plist() {
+        let out = xcodekit(&["plist", "parse", &plist_fixture()]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert_eq!(json["CFBundleName"], "TestApp");
+        assert_eq!(json["CFBundleVersion"], "1");
+    }
+
+    #[test]
+    fn roundtrip_plist() {
+        let tmp_json = "/tmp/xcodekit_test_plist.json";
+        let tmp_plist = "/tmp/xcodekit_test_output.plist";
+
+        // Parse to JSON
+        let out = xcodekit(&["plist", "parse", &plist_fixture()]);
+        assert!(out.status.success());
+        std::fs::write(tmp_json, stdout(&out)).unwrap();
+
+        // Build back to plist
+        let out = xcodekit(&["plist", "build", "--input", tmp_json, "--output", tmp_plist]);
+        assert!(out.status.success());
+
+        // Re-parse and verify
+        let out = xcodekit(&["plist", "parse", tmp_plist]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert_eq!(json["CFBundleName"], "TestApp");
+
+        let _ = std::fs::remove_file(tmp_json);
+        let _ = std::fs::remove_file(tmp_plist);
+    }
+
+    #[test]
+    fn file_not_found() {
+        let out = xcodekit(&["plist", "parse", "/nonexistent/file.plist"]);
+        assert!(!out.status.success());
+        assert!(stderr(&out).contains("FILE_NOT_FOUND"));
+    }
+}
+
+// ── file remove ────────────────────────────────────────────────────
+
+mod file_remove {
+    use super::*;
+
+    #[test]
+    fn remove_dry_run() {
+        // Find a file reference UUID first
+        let list_out = xcodekit(&[
+            "object", "list-by-isa", &fixture("project.pbxproj"),
+            "--isa", "PBXFileReference", "--json",
+        ]);
+        let json = json_stdout(&list_out);
+        let objects = json["objects"].as_array().unwrap();
+        assert!(!objects.is_empty());
+        let file_uuid = objects[0]["uuid"].as_str().unwrap();
+
+        let out = xcodekit(&[
+            "file", "remove", &fixture("project.pbxproj"),
+            "--file", file_uuid, "--json",
+        ]);
+        assert!(out.status.success());
+        let json = json_stdout(&out);
+        assert_eq!(json["changed"], true);
+    }
+
+    #[test]
+    fn remove_not_found() {
+        let out = xcodekit(&[
+            "file", "remove", &fixture("project.pbxproj"),
+            "--file", "000000000000000000000000", "--json",
+        ]);
+        assert!(!out.status.success());
+    }
+
+    #[test]
+    fn help() {
+        let out = xcodekit(&["file", "--help"]);
+        assert!(out.status.success());
+        let text = stdout(&out);
+        assert!(text.contains("add"));
+        assert!(text.contains("remove"));
+    }
+}
+
+// ── group remove ───────────────────────────────────────────────────
+
+mod group_remove {
+    use super::*;
+
+    #[test]
+    fn remove_not_found() {
+        let out = xcodekit(&[
+            "group", "remove", &fixture("project.pbxproj"),
+            "--group", "NonexistentGroup", "--json",
+        ]);
+        assert!(!out.status.success());
+        assert!(stderr(&out).contains("GROUP_NOT_FOUND"));
+    }
+
+    #[test]
+    fn help() {
+        let out = xcodekit(&["group", "--help"]);
+        assert!(out.status.success());
+        let text = stdout(&out);
+        assert!(text.contains("add"));
+        assert!(text.contains("remove"));
+        assert!(text.contains("list-children"));
+    }
+}
+
+// ── stdin ──────────────────────────────────────────────────────────
+
+mod stdin_support {
+    use super::*;
+    use std::process::{Command, Stdio};
+
+    #[test]
+    fn project_inspect_from_stdin() {
+        let fixtures = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        let content = std::fs::read_to_string(format!("{}/project.pbxproj", fixtures)).unwrap();
+
+        let bin = env!("CARGO_BIN_EXE_xcodekit");
+        let mut child = Command::new(bin)
+            .args(&["project", "inspect", "-", "--json"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        use std::io::Write;
+        child.stdin.take().unwrap().write_all(content.as_bytes()).unwrap();
+
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success());
+
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(json["targets"].as_array().unwrap().len() > 0);
+    }
+}
+
+// ── path normalization ─────────────────────────────────────────────
+
 mod path_normalization {
     use super::*;
 
