@@ -1,175 +1,201 @@
 # xcodekit
 
-Native Xcode project automation CLI for AI agents, CI, and developer tooling.
+Native Xcode project manipulation from the command line. Built in Rust. Single binary, no dependencies, no Xcode required. Parses at 1.6 GB/s.
 
-Built in Rust. Single binary, no runtime dependencies. Parses at 1.2 GB/s.
-
-## Install
+Designed for **AI coding agents**, **CI pipelines**, and **shell scripts** that need to inspect and mutate `.pbxproj` files without touching Xcode.
 
 ```bash
-cargo install xcodekit
+brew install mozharovsky/tap/xcodekit
 ```
 
-Or build from source:
+or `cargo install --git https://github.com/mozharovsky/xcode`
 
-```bash
-git clone https://github.com/mozharovsky/xcodekit
-cd xcodekit
-cargo build --release
-# Binary at target/release/xcodekit
-```
+## Why
+
+Xcode projects are notoriously hard to automate. The `.pbxproj` format is a proprietary plist dialect with no official tooling outside Xcode itself. Existing solutions are either slow (Ruby/Swift), tied to a runtime (Node.js), or require Docker.
+
+**xcodekit** is a standalone binary that parses, mutates, and rewrites `.pbxproj` files at native speed. Every command outputs structured JSON, supports dry-run by default, and returns typed error codes. This makes it trivial for AI agents and scripts to operate on Xcode projects without surprises.
 
 ## Quick Start
 
 ```bash
 # Inspect a project
-xcodekit project inspect ios/App.xcodeproj/project.pbxproj --json
+xcodekit project inspect App.xcodeproj --json
 
 # List targets
-xcodekit target list ios/App.xcodeproj/project.pbxproj
+xcodekit target list App.xcodeproj
 
-# Set a build setting
-xcodekit build setting set ios/App.xcodeproj/project.pbxproj \
-  --target App --key SWIFT_VERSION --value 6.0 --write
+# Set a build setting (dry-run by default)
+xcodekit build setting set App.xcodeproj --target MyApp --key SWIFT_VERSION --value 6.0
 
-# Add a file to a group
-xcodekit file add ios/App.xcodeproj/project.pbxproj \
-  --group Sources --file-path Sources/NewFile.swift --write
+# Actually write to disk
+xcodekit build setting set App.xcodeproj --target MyApp --key SWIFT_VERSION --value 6.0 --write
 
-# Check project health
-xcodekit doctor orphans ios/App.xcodeproj/project.pbxproj --json
+# Add a Swift package
+xcodekit spm add-remote App.xcodeproj \
+  --url https://github.com/apple/swift-collections --version 1.0.0 --write
 ```
 
-## Commands
+## Performance
 
-### Project
+Pure Rust parser, benchmarked on Apple M5 Max (5,000 iterations, median):
 
-| Command                     | Description                                     |
-| --------------------------- | ----------------------------------------------- |
-| `project inspect <pbxproj>` | Project summary: targets, object counts, health |
-| `project targets <pbxproj>` | List all targets                                |
-| `project health <pbxproj>`  | Validate project integrity                      |
-| `project dump <pbxproj>`    | Full raw JSON dump                              |
+| Metric     | swift-protobuf.pbxproj (257 KB) |
+| ---------- | ------------------------------- |
+| Parse      | 0.15 ms (1,658 MB/s)            |
+| Build      | 0.42 ms (599 MB/s)              |
+| Round-trip | 0.58 ms                         |
 
-### Targets
+## Key Features
 
-| Command                                                                           | Description           |
-| --------------------------------------------------------------------------------- | --------------------- |
-| `target list <pbxproj>`                                                           | List native targets   |
-| `target show <pbxproj> --target <name>`                                           | Show target details   |
-| `target rename <pbxproj> --target <name> --new-name <name>`                       | Rename with cascade   |
-| `target create-native <pbxproj> --name <n> --product-type <uti> --bundle-id <id>` | Create target         |
-| `target list-embedded <pbxproj> --target <name>`                                  | List embedded targets |
+**Safe by default** — all mutations are dry-run unless you pass `--write`. Preview what would change before committing.
 
-### Build Settings
-
-| Command                                                                   | Description            |
-| ------------------------------------------------------------------------- | ---------------------- |
-| `build setting get <pbxproj> --target <name> --key <KEY>`                 | Get a build setting    |
-| `build setting set <pbxproj> --target <name> --key <KEY> --value <VALUE>` | Set a build setting    |
-| `build setting remove <pbxproj> --target <name> --key <KEY>`              | Remove a build setting |
-
-### Files and Groups
-
-| Command                                                | Description          |
-| ------------------------------------------------------ | -------------------- |
-| `file add <pbxproj> --group <name> --file-path <path>` | Add a file reference |
-| `group add <pbxproj> --parent <name> --name <name>`    | Create a group       |
-| `group list-children <pbxproj> --group <name>`         | List group children  |
-
-### Build Phases and Frameworks
-
-| Command                                                                                | Description            |
-| -------------------------------------------------------------------------------------- | ---------------------- |
-| `build phase ensure <pbxproj> --target <name> --type <Sources\|Frameworks\|Resources>` | Ensure phase exists    |
-| `build phase add-file <pbxproj> --phase <uuid> --file-ref <uuid>`                      | Add file to phase      |
-| `framework add <pbxproj> --target <name> --name <Framework>`                           | Add a system framework |
-
-### Dependencies and Extensions
-
-| Command                                                        | Description             |
-| -------------------------------------------------------------- | ----------------------- |
-| `dependency add <pbxproj> --target <name> --depends-on <name>` | Add target dependency   |
-| `extension embed <pbxproj> --host <name> --extension <name>`   | Embed extension in host |
-
-### Validation
-
-| Command                    | Description              |
-| -------------------------- | ------------------------ |
-| `doctor orphans <pbxproj>` | Find orphaned references |
-| `doctor summary <pbxproj>` | Health summary           |
-
-### Sync Groups (Xcode 16+)
-
-| Command                                                       | Description           |
-| ------------------------------------------------------------- | --------------------- |
-| `sync group add <pbxproj> --target <name> --sync-path <path>` | Add sync group        |
-| `sync group list <pbxproj> --target <name>`                   | List sync group paths |
-
-## Output
-
-All commands support `--json` for machine-readable output.
-
-**Default (human-readable):**
-
-```
-$ xcodekit target list project.pbxproj
-App
-AppTests
-```
-
-**JSON mode:**
-
-```json
-$ xcodekit target list project.pbxproj --json
-{
-  "targets": [
-    { "uuid": "13B07F961A680F5B00A75B9A", "name": "App", "productType": "com.apple.product-type.application" }
-  ]
-}
-```
-
-**Errors** are returned as JSON to stderr with a non-zero exit code:
+**Structured output** — every command supports `--json`. Errors go to stderr with typed codes:
 
 ```json
 { "error": { "code": "TARGET_NOT_FOUND", "message": "Target 'Widget' was not found" } }
 ```
 
-## Write Modes
-
-Mutating commands are **dry-run by default**. Use `--write` to save changes to disk.
+**Batch mode** -- execute multiple operations in a single parse/save cycle. Pipe a JSON array to stdin:
 
 ```bash
-# Preview (no changes written)
-xcodekit build setting set project.pbxproj --target App --key SWIFT_VERSION --value 6.0
-
-# Actually write
-xcodekit build setting set project.pbxproj --target App --key SWIFT_VERSION --value 6.0 --write
+echo '[
+  {"command": "build setting set", "target": "App", "key": "SWIFT_VERSION", "value": "6.0"},
+  {"command": "build setting set", "target": "App", "key": "IPHONEOS_DEPLOYMENT_TARGET", "value": "17.0"},
+  {"command": "framework add", "target": "App", "name": "StoreKit"},
+  {"command": "build phase add script", "target": "App", "name": "SwiftLint", "script": "swiftlint"}
+]' | xcodekit batch App.xcodeproj --write --json
 ```
 
-## Name Resolution
+**Name resolution** — pass target and group names, not UUIDs. Ambiguous names return an error with candidates.
 
-Commands accept target and group names, not just UUIDs. If a name is ambiguous, the CLI returns an error with candidates.
+**Path normalization** — pass `App.xcodeproj` or `App.xcodeproj/project.pbxproj`, both work.
 
-## Performance
+**Stdin support** — pipe `.pbxproj` content directly for inspection (use `-` as the path).
 
-Pure Rust, benchmarked on Apple M3 Max (`cargo bench`):
+## Commands
 
-| Metric     | swift-protobuf (257 KB) |
-| ---------- | ----------------------- |
-| Parse      | 0.20 ms (1,250 MB/s)    |
-| Build      | 0.58 ms (430 MB/s)      |
-| Round-trip | 0.80 ms                 |
+### Inspection
+
+```
+project inspect  <pbxproj>                                          # Project summary
+project targets  <pbxproj>                                          # List all targets
+project health   <pbxproj>                                          # Validate integrity
+project dump     <pbxproj>                                          # Full raw JSON dump
+doctor orphans   <pbxproj>                                          # Find orphaned refs
+doctor summary   <pbxproj>                                          # Health summary
+```
+
+### Targets
+
+```
+target list           <pbxproj>                                     # List native targets
+target show           <pbxproj> --target <name>                     # Show target details
+target rename         <pbxproj> --target <name> --new-name <n>      # Rename with cascade
+target create-native  <pbxproj> --name <n> --product-type <uti> --bundle-id <id>
+target duplicate      <pbxproj> --target <name> --new-name <n>      # Deep-clone target
+target list-embedded  <pbxproj> --target <name>                     # List embedded exts
+```
+
+### Build Settings
+
+```
+build setting get     <pbxproj> --target <name> --key <KEY>
+build setting set     <pbxproj> --target <name> --key <KEY> --value <VAL>
+build setting remove  <pbxproj> --target <name> --key <KEY>
+```
+
+### Files and Groups
+
+```
+file add              <pbxproj> --group <name> --file-path <path>
+file remove           <pbxproj> --file <name-or-uuid>
+file add-folder       <pbxproj> --target <name> --folder <path> --group <name>
+group add             <pbxproj> --parent <name> --name <name>
+group remove          <pbxproj> --group <name>
+group list-children   <pbxproj> --group <name>
+```
+
+### Build Phases
+
+```
+build phase ensure     <pbxproj> --target <name> --type <sources|frameworks|resources|headers>
+build phase add-file   <pbxproj> --phase <uuid> --file-ref <uuid>
+build phase add-script <pbxproj> --target <name> --name <n> --script <body> [--shell /bin/sh]
+```
+
+### Frameworks and Dependencies
+
+```
+framework add    <pbxproj> --target <name> --name <Framework>
+dependency add   <pbxproj> --target <name> --depends-on <name>
+extension embed  <pbxproj> --host <name> --extension <name>
+```
+
+### Swift Package Manager
+
+```
+spm add-remote      <pbxproj> --url <url> --version <ver>
+spm add-local       <pbxproj> --package-path <path>
+spm add-product     <pbxproj> --target <name> --product <name> --package <name>
+spm remove-product  <pbxproj> --target <name> --product <name>
+spm list            <pbxproj>
+```
+
+### Plist
+
+```
+plist parse  <file>                                                 # XML/binary plist to JSON
+plist build  --input <json> --output <file>                         # JSON to XML plist
+```
+
+### Advanced
+
+```
+object get           <pbxproj> --uuid <uuid>                        # Inspect any object
+object get-property  <pbxproj> --uuid <uuid> --key <key>            # Read a property
+object set-property  <pbxproj> --uuid <uuid> --key <k> --value <v>  # Write a property
+object list-by-isa   <pbxproj> --isa <ISA>                          # List by type
+sync group add       <pbxproj> --target <name> --sync-path <p>      # Xcode 16+ file sync
+sync group list      <pbxproj> --target <name>
+```
+
+All mutation commands support `--write` (save to disk) and `--json` (structured output).
+
+## For AI Agents
+
+xcodekit is designed as a tool AI agents call via `execa`, `subprocess`, or shell. Key conventions:
+
+- `--json` on every command for structured, parseable output
+- Typed error codes in stderr (`TARGET_NOT_FOUND`, `PARSE_ERROR`, `FILE_NOT_FOUND`, etc.)
+- Non-zero exit codes on failure
+- `--write` is explicit -- agents can preview changes safely
+- `batch` command for multi-step mutations in one process spawn
+- Stdin support (`-`) for piping `.pbxproj` content without temp files
+
+## Install
+
+**Homebrew** (macOS / Linux):
+
+```bash
+brew install mozharovsky/tap/xcodekit
+```
+
+**Cargo** (build from source):
+
+```bash
+cargo install --git https://github.com/mozharovsky/xcode
+```
+
+Prebuilt binaries for macOS (x86_64, aarch64) and Linux (x86_64, aarch64) are available on the [Releases](https://github.com/mozharovsky/xcode/releases) page.
 
 ## Development
 
 ```bash
-cargo test          # run all tests
-cargo build         # debug build
-cargo build --release  # release build
-cargo bench         # benchmarks
-cargo clippy        # lint
-cargo fmt           # format
+cargo test           # 165 tests
+cargo bench          # parse/build benchmarks
+cargo clippy         # lint
+cargo fmt            # format
 ```
 
 ## License

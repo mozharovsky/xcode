@@ -5,8 +5,8 @@
 use std::fs;
 use std::time::Instant;
 
-const WARMUP: usize = 10;
-const ITERATIONS: usize = 500;
+const WARMUP: usize = 100;
+const ITERATIONS: usize = 5000;
 
 fn median(times: &mut Vec<f64>) -> f64 {
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
