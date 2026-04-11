@@ -2,20 +2,6 @@
 target/
 **/*.rs.bk
 
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# napi-rs build artifacts
-*.node
-index.js
-index.d.ts
-
-# Build output
-pkg/
-
 # OS
 .DS_Store
 Thumbs.db

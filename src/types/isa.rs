@@ -136,10 +136,7 @@ impl Isa {
 
     /// Returns true if this ISA represents a target.
     pub fn is_target(&self) -> bool {
-        matches!(
-            self,
-            Isa::PBXNativeTarget | Isa::PBXAggregateTarget | Isa::PBXLegacyTarget
-        )
+        matches!(self, Isa::PBXNativeTarget | Isa::PBXAggregateTarget | Isa::PBXLegacyTarget)
     }
 
     /// Returns true if this ISA represents a group-like object.

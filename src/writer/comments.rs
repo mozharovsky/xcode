@@ -14,8 +14,7 @@ pub fn create_reference_list(project: &PlistValue<'_>) -> HashMap<String, String
     };
 
     // Build O(1) lookup index for the objects dict (~4000 entries)
-    let index: HashMap<&str, &PlistValue<'_>> =
-        objects.iter().map(|(k, v)| (k.as_ref(), v)).collect();
+    let index: HashMap<&str, &PlistValue<'_>> = objects.iter().map(|(k, v)| (k.as_ref(), v)).collect();
 
     // Pre-build reverse index: build_file_uuid → (phase_isa, phase_name)
     // This eliminates the O(n²) scan in get_build_phase_name_containing_file
@@ -114,16 +113,12 @@ fn get_pbx_build_file_comment<'a>(
     cache: &mut HashMap<String, String>,
 ) -> Option<String> {
     let build_phase_name = if let Some(&(isa, name)) = file_to_phase.get(id) {
-        name.map(|n| n.to_string())
-            .unwrap_or_else(|| get_default_build_phase_name(isa).unwrap_or_default())
+        name.map(|n| n.to_string()).unwrap_or_else(|| get_default_build_phase_name(isa).unwrap_or_default())
     } else {
         "[missing build phase]".to_string()
     };
 
-    let ref_id = build_file
-        .get("fileRef")
-        .or_else(|| build_file.get("productRef"))
-        .and_then(|v| v.as_str());
+    let ref_id = build_file.get("fileRef").or_else(|| build_file.get("productRef")).and_then(|v| v.as_str());
 
     let name = if let Some(ref_id) = ref_id {
         if let Some(ref_obj) = objects.get(ref_id) {
@@ -157,10 +152,7 @@ fn get_default_build_phase_name(isa: &str) -> Option<String> {
     None
 }
 
-fn get_xc_configuration_list_comment<'a>(
-    id: &str,
-    objects: &HashMap<&str, &PlistValue<'a>>,
-) -> String {
+fn get_xc_configuration_list_comment<'a>(id: &str, objects: &HashMap<&str, &PlistValue<'a>>) -> String {
     for (&inner_id, obj) in objects {
         if obj.as_object().is_some() {
             let config_list = obj.get("buildConfigurationList").and_then(|v| v.as_str());
@@ -215,7 +207,7 @@ fn get_xc_configuration_list_comment<'a>(
 
 fn get_repo_name_from_url(repo_url: &str) -> String {
     if let Some(path) = repo_url.strip_prefix("https://github.com/") {
-        if let Some(name) = path.split('/').last() {
+        if let Some(name) = path.split('/').next_back() {
             let name = name.strip_suffix(".git").unwrap_or(name);
             if !name.is_empty() {
                 return name.to_string();
@@ -223,7 +215,7 @@ fn get_repo_name_from_url(repo_url: &str) -> String {
         }
     }
     if let Some(path) = repo_url.strip_prefix("http://github.com/") {
-        if let Some(name) = path.split('/').last() {
+        if let Some(name) = path.split('/').next_back() {
             let name = name.strip_suffix(".git").unwrap_or(name);
             if !name.is_empty() {
                 return name.to_string();
@@ -249,31 +241,16 @@ mod tests {
 
     #[test]
     fn test_default_build_phase_name() {
-        assert_eq!(
-            get_default_build_phase_name("PBXSourcesBuildPhase"),
-            Some("Sources".to_string())
-        );
-        assert_eq!(
-            get_default_build_phase_name("PBXFrameworksBuildPhase"),
-            Some("Frameworks".to_string())
-        );
-        assert_eq!(
-            get_default_build_phase_name("PBXResourcesBuildPhase"),
-            Some("Resources".to_string())
-        );
+        assert_eq!(get_default_build_phase_name("PBXSourcesBuildPhase"), Some("Sources".to_string()));
+        assert_eq!(get_default_build_phase_name("PBXFrameworksBuildPhase"), Some("Frameworks".to_string()));
+        assert_eq!(get_default_build_phase_name("PBXResourcesBuildPhase"), Some("Resources".to_string()));
         assert_eq!(get_default_build_phase_name("PBXProject"), None);
     }
 
     #[test]
     fn test_repo_name_from_url() {
-        assert_eq!(
-            get_repo_name_from_url("https://github.com/expo/spm-package"),
-            "spm-package"
-        );
+        assert_eq!(get_repo_name_from_url("https://github.com/expo/spm-package"), "spm-package");
         assert_eq!(get_repo_name_from_url("https://github.com/user/repo.git"), "repo");
-        assert_eq!(
-            get_repo_name_from_url("https://example.com/custom"),
-            "https://example.com/custom"
-        );
+        assert_eq!(get_repo_name_from_url("https://example.com/custom"), "https://example.com/custom");
     }
 }

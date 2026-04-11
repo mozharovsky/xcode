@@ -111,14 +111,8 @@ mod tests {
     fn test_modify_and_rebuild() {
         let mut value = parse_plist(INFO_PLIST).unwrap();
         let obj = value.as_object_mut().unwrap();
-        obj.insert(
-            "CFBundleShortVersionString".to_string(),
-            serde_json::Value::String("2.0".to_string()),
-        );
-        obj.insert(
-            "CFBundleVersion".to_string(),
-            serde_json::Value::String("42".to_string()),
-        );
+        obj.insert("CFBundleShortVersionString".to_string(), serde_json::Value::String("2.0".to_string()));
+        obj.insert("CFBundleVersion".to_string(), serde_json::Value::String("42".to_string()));
 
         let xml = build_plist(&value).unwrap();
         let reparsed = parse_plist(&xml).unwrap();

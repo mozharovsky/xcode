@@ -1,34 +1,29 @@
 [package]
-name = "xcode"
-version = "0.6.15"
+name = "xcodekit"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
-description = "Parse, manipulate, and serialize Xcode .pbxproj files"
-repository = "https://github.com/mozharovsky/xcode"
+description = "Native Xcode project automation CLI for AI agents, CI, and developer tooling"
+repository = "https://github.com/mozharovsky/xcodekit"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+name = "xcodekit"
+path = "src/lib.rs"
 
-[features]
-default = ["napi"]
-napi = ["dep:napi", "dep:napi-derive"]
-wasm = ["dep:wasm-bindgen", "dep:js-sys", "dep:serde-wasm-bindgen"]
+[[bin]]
+name = "xcodekit"
+path = "cli/main.rs"
 
 [dependencies]
-napi = { version = "2", features = ["serde-json", "napi9"], optional = true }
-napi-derive = { version = "2", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3", optional = true }
-serde-wasm-bindgen = { version = "0.6", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 ahash = { version = "0.8", default-features = false, features = ["compile-time-rng"] }
 md-5 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 plist = { version = "1", features = ["serde"] }
-
-[build-dependencies]
-napi-build = "2"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+quick-xml = { version = "0.37", features = ["serialize"] }
 
 [dev-dependencies]
 pretty_assertions = "1"
@@ -37,14 +32,9 @@ pretty_assertions = "1"
 name = "parse_build"
 harness = false
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
 [profile.release]
 lto = true
-strip = "symbols"
-codegen-units = 1
-opt-level = "z"
+opt-level = 3
 
 [profile.bench]
 inherits = "release"

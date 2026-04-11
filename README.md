@@ -1,300 +1,237 @@
-# @xcodekit/xcode
+# xcodekit
 
-Super fast Xcode `.pbxproj` parser and serializer written in Rust.
+Native Xcode project manipulation from the command line. Built in Rust. Single binary, no dependencies, no Xcode required. Parses at 1.6 GB/s.
 
-Drop-in replacement for the low-level API of [`@bacons/xcode`](https://github.com/EvanBacon/xcode) — same `parse()` and `build()` interface, **3-15x faster parsing**, byte-identical output.
-
-## Install
+Designed for **AI coding agents**, **CI pipelines**, and **shell scripts** that need to inspect and mutate `.pbxproj` files without touching Xcode.
 
 ```bash
-# Recommended — auto-selects native or WASM
-npm install @xcodekit/xcode
-
-# Native only (Node.js, fastest)
-npm install @xcodekit/xcode-node
-
-# WASM only (universal — Bun, CF Workers, any bundler)
-npm install @xcodekit/xcode-wasm
+brew install mozharovsky/tap/xcodekit
 ```
 
-`@xcodekit/xcode` is a thin auto-selector — in Node.js/Bun it tries the native addon first, everywhere else it uses WASM. You get optimal performance without choosing.
+or `cargo install --git https://github.com/mozharovsky/xcode`
+
+## Why
+
+Xcode projects are notoriously hard to automate. The `.pbxproj` format is a proprietary plist dialect with no official tooling outside Xcode itself. Existing solutions are either slow (Ruby/Swift), tied to a runtime (Node.js), or require Docker.
+
+**xcodekit** is a standalone binary that parses, mutates, and rewrites `.pbxproj` files at native speed. Every command outputs structured JSON, supports dry-run by default, and returns typed error codes. This makes it trivial for AI agents and scripts to operate on Xcode projects without surprises.
 
 ## Quick Start
 
-```js
-import { parse, build } from "@xcodekit/xcode";
-import { readFileSync, writeFileSync } from "fs";
+```bash
+# Inspect a project
+xcodekit project inspect App.xcodeproj --json
 
-// Parse a .pbxproj file
-const text = readFileSync("project.pbxproj", "utf8");
-const project = parse(text);
+# List targets
+xcodekit target list App.xcodeproj
 
-// Modify it
-project.objects["YOUR_UUID"] = {
-  isa: "PBXFileReference",
-  path: "NewFile.swift",
-  sourceTree: "<group>",
-};
+# Set a build setting (dry-run by default)
+xcodekit build setting set App.xcodeproj --target MyApp --key SWIFT_VERSION --value 6.0
 
-// Write it back
-const output = build(project);
-writeFileSync("project.pbxproj", output);
+# Actually write to disk
+xcodekit build setting set App.xcodeproj --target MyApp --key SWIFT_VERSION --value 6.0 --write
+
+# Add a Swift package
+xcodekit spm add-remote App.xcodeproj \
+  --url https://github.com/apple/swift-collections --version 1.0.0 --write
 ```
-
-## API
-
-### Low-Level (JSON)
-
-#### `parse(text: string): object`
-
-Parse a `.pbxproj` string into a JSON-compatible object. Matches the output of `@bacons/xcode/json`'s `parse()`.
-
-```js
-const project = parse(readFileSync("project.pbxproj", "utf8"));
-```
-
-#### `build(project: object): string`
-
-Serialize a JSON object back to `.pbxproj` format. Produces byte-identical output to `@bacons/xcode/json`'s `build()`.
-
-```js
-writeFileSync("project.pbxproj", build(project));
-```
-
-#### `parseAndBuild(text: string): string`
-
-Parse and immediately re-serialize. Stays entirely in Rust/WASM with zero JS marshalling — the fastest possible round-trip path.
-
-```js
-const output = parseAndBuild(readFileSync("project.pbxproj", "utf8"));
-```
-
-### High-Level (XcodeProject)
-
-#### `XcodeProject.open(filePath)` / `XcodeProject.fromString(content)`
-
-Open from disk or parse from a string.
-
-```js
-import { XcodeProject } from "@xcodekit/xcode";
-
-// From disk
-const project = XcodeProject.open("ios/MyApp.xcodeproj/project.pbxproj");
-
-// From string (no file on disk needed)
-const project = XcodeProject.fromString(pbxprojContent);
-
-// Properties
-project.archiveVersion; // 1
-project.objectVersion; // 46
-project.filePath; // path if opened from disk, null if fromString
-project.mainGroupUuid; // root group UUID
-
-// Targets
-const targets = project.getNativeTargets(); // UUID[]
-const mainApp = project.findMainAppTarget("ios"); // UUID | null
-project.getTargetName(mainApp); // "MyApp"
-project.setTargetName(mainApp, "NewName");
-project.renameTarget(mainApp, "OldName", "NewName"); // cascades to groups, product refs, proxies
-
-// Build settings
-project.getBuildSetting(targetUuid, "PRODUCT_BUNDLE_IDENTIFIER");
-project.setBuildSetting(targetUuid, "SWIFT_VERSION", "5.0");
-project.removeBuildSetting(targetUuid, "CODE_SIGN_IDENTITY");
-
-// Files & groups
-const fileUuid = project.addFile(project.mainGroupUuid, "Sources/App.swift");
-const groupUuid = project.addGroup(project.mainGroupUuid, "Features");
-const children = project.getGroupChildren(groupUuid);
-
-// Build phases
-const phase = project.ensureBuildPhase(targetUuid, "PBXSourcesBuildPhase");
-project.addBuildFile(phase, fileUuid);
-
-// Frameworks
-project.addFramework(targetUuid, "SwiftUI");
-
-// Create targets
-const widgetTarget = project.createNativeTarget(
-  "MyWidget",
-  "com.apple.product-type.app-extension",
-  "com.example.mywidget",
-);
-
-// Embed extension into host app
-project.addDependency(mainApp, widgetTarget);
-project.embedExtension(mainApp, widgetTarget);
-
-// Xcode 16+ file system sync groups
-project.addFileSystemSyncGroup(widgetTarget, "MyWidget");
-
-// Generic object access
-project.getObjectProperty(uuid, "path");
-project.setObjectProperty(uuid, "path", "new/path");
-const proxies = project.findObjectsByIsa("PBXContainerItemProxy");
-
-// Validation
-const orphans = project.findOrphanedReferences();
-// [{ referrerUuid, referrerIsa, property, orphanUuid }]
-
-// Serialize
-const pbxproj = project.toBuild(); // string
-const json = project.toJSON(); // object
-
-// Write back to disk
-project.save();
-
-// Deterministic UUID generation
-const uuid = project.getUniqueId("my-seed-string"); // 24-char hex
-```
-
-All `XcodeProject` methods operate in Rust/WASM — only primitive strings cross the boundary. This is the fastest path for project manipulation.
-
-## Packages
-
-| Package                | What                                             | Size    | Runtime                            |
-| ---------------------- | ------------------------------------------------ | ------- | ---------------------------------- |
-| `@xcodekit/xcode`      | Auto-selector (tries native, falls back to WASM) | ~4 KB   | Node.js, Bun, CF Workers, browsers |
-| `@xcodekit/xcode-node` | Native napi-rs addon                             | ~600 KB | Node.js only                       |
-| `@xcodekit/xcode-wasm` | WASM with inlined base64                         | ~370 KB | Everywhere                         |
-
-`@xcodekit/xcode` uses [exports conditions](https://nodejs.org/api/packages.html#conditional-exports): the `node` condition loads native, `default` loads WASM. No try/catch at runtime for most environments.
-
-### When to use which
-
-| Environment               | Recommended                                          |
-| ------------------------- | ---------------------------------------------------- |
-| Node.js / Bun             | `@xcodekit/xcode` (auto-selects native)              |
-| Cloudflare Workers / edge | `@xcodekit/xcode` or `@xcodekit/xcode-wasm`          |
-| Bundled app (single file) | `@xcodekit/xcode-wasm` (inlined, no file resolution) |
-| Need max performance      | `@xcodekit/xcode-node` (direct, no facade overhead)  |
 
 ## Performance
 
-Benchmarked on Apple M4 Pro, Node.js v24. Median of 200 iterations.
+Pure Rust parser, benchmarked on Apple M5 Max (5,000 iterations, median):
 
-- **xcode-wasm** — `@xcodekit/xcode-wasm`
-- **xcode-node** — `@xcodekit/xcode-node`
-- **@bacons/xcode** — `@bacons/xcode/json`
+| Metric     | swift-protobuf.pbxproj (257 KB) |
+| ---------- | ------------------------------- |
+| Parse      | 0.15 ms (1,658 MB/s)            |
+| Build      | 0.42 ms (599 MB/s)              |
+| Round-trip | 0.58 ms                         |
 
-### Parse
+## Key Features
 
-| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
-| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
-| swift-protobuf (257 KB)    | 2.9 ms     | 3.7 ms     | 43.9 ms       | **15.2x**    | **11.8x**    |
-| Cocoa-Application (166 KB) | 2.4 ms     | 3.2 ms     | 17.2 ms       | **7.3x**     | **5.4x**     |
-| AFNetworking (99 KB)       | 1.3 ms     | 1.7 ms     | 6.6 ms        | **5.1x**     | **3.9x**     |
-| watch (48 KB)              | 0.7 ms     | 0.9 ms     | 2.1 ms        | **3.0x**     | **2.3x**     |
-| project (19 KB)            | 0.3 ms     | 0.4 ms     | 0.8 ms        | **2.9x**     | **2.2x**     |
+**Safe by default** — all mutations are dry-run unless you pass `--write`. Preview what would change before committing.
 
-### Build
+**Structured output** — every command supports `--json`. Errors go to stderr with typed codes:
 
-| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
-| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
-| swift-protobuf (257 KB)    | 4.1 ms     | 5.2 ms     | 12.0 ms       | **2.9x**     | **2.3x**     |
-| Cocoa-Application (166 KB) | 3.3 ms     | 4.5 ms     | 2.7 ms        | 1.2x slower  | 1.7x slower  |
-| AFNetworking (99 KB)       | 1.6 ms     | 2.3 ms     | 1.8 ms        | **1.1x**     | 1.3x slower  |
-| watch (48 KB)              | 0.8 ms     | 1.1 ms     | 0.4 ms        | 1.9x slower  | 2.7x slower  |
-| project (19 KB)            | 0.3 ms     | 0.4 ms     | 0.2 ms        | 1.9x slower  | 2.7x slower  |
+```json
+{ "error": { "code": "TARGET_NOT_FOUND", "message": "Target 'Widget' was not found" } }
+```
 
-> [!NOTE]
-> TypeScript wins `build()` on smaller files because it operates directly on native JS objects with zero serialization cost. On large files (>100 KB) where actual serialization work dominates, Rust wins.
+**Batch mode** -- execute multiple operations in a single parse/save cycle. Pipe a JSON array to stdin:
 
-### Round-Trip (parse + build)
+```bash
+echo '[
+  {"command": "build setting set", "target": "App", "key": "SWIFT_VERSION", "value": "6.0"},
+  {"command": "build setting set", "target": "App", "key": "IPHONEOS_DEPLOYMENT_TARGET", "value": "17.0"},
+  {"command": "framework add", "target": "App", "name": "StoreKit"},
+  {"command": "build phase add script", "target": "App", "name": "SwiftLint", "script": "swiftlint"}
+]' | xcodekit batch App.xcodeproj --write --json
+```
 
-| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
-| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
-| swift-protobuf (257 KB)    | 7.0 ms     | 9.0 ms     | 55.9 ms       | **8.0x**     | **6.2x**     |
-| Cocoa-Application (166 KB) | 5.7 ms     | 7.7 ms     | 19.9 ms       | **3.5x**     | **2.6x**     |
-| AFNetworking (99 KB)       | 2.9 ms     | 4.0 ms     | 8.4 ms        | **2.9x**     | **2.1x**     |
-| watch (48 KB)              | 1.5 ms     | 2.0 ms     | 2.5 ms        | **1.7x**     | **1.3x**     |
-| project (19 KB)            | 0.6 ms     | 0.8 ms     | 1.0 ms        | **1.7x**     | **1.3x**     |
+**Name resolution** — pass target and group names, not UUIDs. Ambiguous names return an error with candidates.
 
-### Round-Trip (parseAndBuild — zero marshalling)
+**Path normalization** — pass `App.xcodeproj` or `App.xcodeproj/project.pbxproj`, both work.
 
-| Fixture                    | xcode-wasm | xcode-node | @bacons/xcode | wasm speedup | node speedup |
-| -------------------------- | ---------- | ---------- | ------------- | ------------ | ------------ |
-| swift-protobuf (257 KB)    | 4.8 ms     | 4.4 ms     | 62.7 ms       | **13.1x**    | **14.2x**    |
-| Cocoa-Application (166 KB) | 3.7 ms     | 3.7 ms     | 22.4 ms       | **6.0x**     | **6.1x**     |
-| AFNetworking (99 KB)       | 1.9 ms     | 1.8 ms     | 9.2 ms        | **4.7x**     | **5.1x**     |
-| watch (48 KB)              | 0.9 ms     | 0.9 ms     | 2.8 ms        | **3.0x**     | **3.1x**     |
-| project (19 KB)            | 0.4 ms     | 0.3 ms     | 1.0 ms        | **2.8x**     | **2.9x**     |
+**Stdin support** — pipe `.pbxproj` content directly for inspection (use `-` as the path).
 
-### Package Size
+## Commands
 
-|              | xcode-wasm | xcode-node | @bacons/xcode |
-| ------------ | ---------- | ---------- | ------------- |
-| Uncompressed | ~370 KB    | 559 KB     | 1.1 MB        |
-| Gzipped      | ~96 KB     | 270 KB     | ~400 KB       |
+### Inspection
 
-## Compatibility
+```
+project inspect  <pbxproj>                                          # Project summary
+project targets  <pbxproj>                                          # List all targets
+project health   <pbxproj>                                          # Validate integrity
+project dump     <pbxproj>                                          # Full raw JSON dump
+doctor orphans   <pbxproj>                                          # Find orphaned refs
+doctor summary   <pbxproj>                                          # Health summary
+```
 
-- Full feature parity with `@bacons/xcode/json` (parse/build)
-- 13/13 round-trip fixtures produce **byte-identical** output
-- All escape sequences: standard (`\n`, `\t`, etc.), Unicode (`\Uxxxx`), octal, NeXTSTEP (128 entries)
-- Xcode 16+ file system synchronized groups
-- Swift Package Manager references
+### Targets
 
-## Supported Platforms
+```
+target list           <pbxproj>                                     # List native targets
+target show           <pbxproj> --target <name>                     # Show target details
+target rename         <pbxproj> --target <name> --new-name <n>      # Rename with cascade
+target create-native  <pbxproj> --name <n> --product-type <uti> --bundle-id <id>
+target duplicate      <pbxproj> --target <name> --new-name <n>      # Deep-clone target
+target list-embedded  <pbxproj> --target <name>                     # List embedded exts
+```
 
-### Native (`@xcodekit/xcode-node`)
+### Build Settings
 
-| Platform | Architecture                       |
-| -------- | ---------------------------------- |
-| macOS    | arm64 (Apple Silicon), x64 (Intel) |
-| Linux    | x64 (glibc), arm64 (glibc)         |
-| Windows  | x64 (MSVC)                         |
+```
+build setting get     <pbxproj> --target <name> --key <KEY>
+build setting set     <pbxproj> --target <name> --key <KEY> --value <VAL>
+build setting remove  <pbxproj> --target <name> --key <KEY>
+```
 
-### WASM (`@xcodekit/xcode-wasm`)
+### Files and Groups
 
-Any environment that supports WebAssembly — Node.js, Bun, Deno, Cloudflare Workers, browsers, etc. WASM binary is inlined as base64 — no file resolution needed, works in single-file bundles.
+```
+file add              <pbxproj> --group <name> --file-path <path>
+file remove           <pbxproj> --file <name-or-uuid>
+file add-folder       <pbxproj> --target <name> --folder <path> --group <name>
+group add             <pbxproj> --parent <name> --name <name>
+group remove          <pbxproj> --group <name>
+group list-children   <pbxproj> --group <name>
+```
+
+### Build Phases
+
+```
+build phase ensure     <pbxproj> --target <name> --type <sources|frameworks|resources|headers>
+build phase add-file   <pbxproj> --phase <uuid> --file-ref <uuid>
+build phase add-script <pbxproj> --target <name> --name <n> --script <body> [--shell /bin/sh]
+```
+
+### Frameworks and Dependencies
+
+```
+framework add    <pbxproj> --target <name> --name <Framework>
+dependency add   <pbxproj> --target <name> --depends-on <name>
+extension embed  <pbxproj> --host <name> --extension <name>
+```
+
+### Swift Package Manager
+
+```
+spm add-remote      <pbxproj> --url <url> --version <ver>
+spm add-local       <pbxproj> --package-path <path>
+spm add-product     <pbxproj> --target <name> --product <name> --package <name>
+spm remove-product  <pbxproj> --target <name> --product <name>
+spm list            <pbxproj>
+```
+
+### Schemes (.xcscheme)
+
+```
+scheme list              <xcodeproj>                                          # List all schemes
+scheme show              <xcodeproj> --scheme <name>                          # Dump scheme as JSON
+scheme create            <xcodeproj> --name <name> --target <name>            # Create minimal scheme
+scheme set-env           <xcodeproj> --scheme <name> --key <K> --value <V>    # Set env var
+scheme add-arg           <xcodeproj> --scheme <name> --arg <arg>              # Add launch argument
+scheme add-build-target  <xcodeproj> --scheme <name> --target <name> ...      # Add build target
+```
+
+### Workspaces (.xcworkspace)
+
+```
+workspace inspect         <xcworkspace>                                       # List contents
+workspace list-projects   <xcworkspace>                                       # List project refs
+workspace add-project     <xcworkspace> --project-path <path>                 # Add project
+workspace remove-project  <xcworkspace> --project-path <path>                 # Remove project
+workspace create          <path>                                              # Create empty workspace
+```
+
+### XCConfig (.xcconfig)
+
+```
+xcconfig parse    <file>                                                      # Parse to JSON
+xcconfig flatten  <file>                                                      # Resolve to key-value pairs
+```
+
+### Breakpoints
+
+```
+breakpoint list    <xcodeproj-or-file>                                        # List all breakpoints
+breakpoint add     <xcodeproj-or-file> --file <path> --line <n>               # Add file breakpoint
+breakpoint remove  <xcodeproj-or-file> --uuid <uuid>                          # Remove breakpoint
+```
+
+### Plist
+
+```
+plist parse  <file>                                                           # XML/binary plist to JSON
+plist build  --input <json> --output <file>                                   # JSON to XML plist
+```
+
+### Advanced
+
+```
+object get           <pbxproj> --uuid <uuid>                                  # Inspect any object
+object get-property  <pbxproj> --uuid <uuid> --key <key>                      # Read a property
+object set-property  <pbxproj> --uuid <uuid> --key <k> --value <v>            # Write a property
+object list-by-isa   <pbxproj> --isa <ISA>                                    # List by type
+sync group add       <pbxproj> --target <name> --sync-path <p>                # Xcode 16+ file sync
+sync group list      <pbxproj> --target <name>
+```
+
+All mutation commands support `--write` (save to disk) and `--json` (structured output).
+
+## For AI Agents
+
+xcodekit is designed as a tool AI agents call via `execa`, `subprocess`, or shell. Key conventions:
+
+- `--json` on every command for structured, parseable output
+- Typed error codes in stderr (`TARGET_NOT_FOUND`, `PARSE_ERROR`, `FILE_NOT_FOUND`, etc.)
+- Non-zero exit codes on failure
+- `--write` is explicit -- agents can preview changes safely
+- `batch` command for multi-step mutations in one process spawn
+- Stdin support (`-`) for piping `.pbxproj` content without temp files
+
+## Install
+
+**Homebrew** (macOS / Linux):
+
+```bash
+brew install mozharovsky/tap/xcodekit
+```
+
+**Cargo** (build from source):
+
+```bash
+cargo install --git https://github.com/mozharovsky/xcode
+```
+
+Prebuilt binaries for macOS (x86_64, aarch64) and Linux (x86_64, aarch64) are available on the [Releases](https://github.com/mozharovsky/xcode/releases) page.
 
 ## Development
 
 ```bash
-# Prerequisites: Rust toolchain, Node.js >= 18, wasm-pack, binaryen
-
-npm install
-
-# Tests
-make test           # all (Rust + native JS + WASM JS)
-make test-rust      # Rust unit + integration tests
-make test-js        # native napi tests (vitest)
-make test-wasm      # WASM tests (vitest)
-
-# Build
-make build          # native napi release
-make build-debug    # native napi debug (faster compilation)
-make build-wasm     # WASM → pkg/xcode-wasm/
-make build-node     # native → pkg/xcode-node/
-make build-all      # all packages
-
-# Other
-make check          # type-check all targets
-make fmt            # cargo fmt + prettier
-make lint           # cargo clippy
-make bench          # all benchmarks
-make clean          # remove all artifacts
-```
-
-### Project Structure
-
-```
-src/                          # Rust source (parser, writer, project API)
-tests/
-  integration_tests.rs        # Rust integration tests
-  node.test.mjs               # Native napi JS tests (vitest)
-  wasm.test.mjs               # WASM JS tests (vitest)
-  fixtures/                   # 20 real-world .pbxproj files
-npm/                          # Publishable package metadata
-  xcode/                      # @xcodekit/xcode (auto-selector facade)
-  xcode-node/                 # @xcodekit/xcode-node (native napi)
-    platforms/                # Platform binary packages (darwin-arm64, etc.)
-  xcode-wasm/                 # @xcodekit/xcode-wasm (WASM wrapper + types)
-scripts/                      # Build scripts
-  build-node-pkg.sh           # Assembles pkg/xcode-node/
-  build-wasm-pkg.sh           # Assembles pkg/xcode-wasm/ (wasm-opt, base64 inline)
-pkg/                          # Generated build output (gitignored)
+cargo test           # 181 tests
+cargo bench          # parse/build benchmarks
+cargo clippy         # lint
+cargo fmt            # format
 ```
 
 ## License

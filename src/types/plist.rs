@@ -39,10 +39,8 @@ impl<'a> PlistValue<'a> {
             PlistValue::Float(f) => PlistValue::Float(f),
             PlistValue::Data(d) => PlistValue::Data(d),
             PlistValue::Object(pairs) => {
-                let owned: PlistObject<'static> = pairs
-                    .into_iter()
-                    .map(|(k, v)| (Cow::Owned(k.into_owned()), v.into_owned()))
-                    .collect();
+                let owned: PlistObject<'static> =
+                    pairs.into_iter().map(|(k, v)| (Cow::Owned(k.into_owned()), v.into_owned())).collect();
                 PlistValue::Object(owned)
             }
             PlistValue::Array(vec) => PlistValue::Array(vec.into_iter().map(|v| v.into_owned()).collect()),
@@ -92,8 +90,7 @@ impl<'a> PlistValue<'a> {
 
     /// Get a value from an Object by key (linear scan — fast for typical <20-key objects).
     pub fn get(&self, key: &str) -> Option<&PlistValue<'a>> {
-        self.as_object()
-            .and_then(|pairs| pairs.iter().find(|(k, _)| k.as_ref() == key).map(|(_, v)| v))
+        self.as_object().and_then(|pairs| pairs.iter().find(|(k, _)| k.as_ref() == key).map(|(_, v)| v))
     }
 }
 
@@ -106,14 +103,7 @@ impl<'a> Serialize for PlistValue<'a> {
         match self {
             PlistValue::String(s) => serializer.serialize_str(s),
             PlistValue::Integer(n) => serializer.serialize_i64(*n),
-            PlistValue::Float(f) => {
-                let s = format!("{}", f);
-                if s.contains('.') {
-                    serializer.serialize_f64(*f)
-                } else {
-                    serializer.serialize_f64(*f)
-                }
-            }
+            PlistValue::Float(f) => serializer.serialize_f64(*f),
             PlistValue::Data(bytes) => {
                 use serde::ser::SerializeMap;
                 let mut map = serializer.serialize_map(Some(2))?;
@@ -206,11 +196,8 @@ impl<'de> Deserialize<'de> for PlistValue<'static> {
                 }
 
                 if pairs.len() == 2 {
-                    let has_buffer = pairs
-                        .iter()
-                        .find(|(k, _)| k.as_ref() == "type")
-                        .and_then(|(_, v)| v.as_str())
-                        .map_or(false, |t| t == "Buffer");
+                    let has_buffer = pairs.iter().find(|(k, _)| k.as_ref() == "type").and_then(|(_, v)| v.as_str())
+                        == Some("Buffer");
                     if has_buffer {
                         if let Some((_, PlistValue::Array(data))) = pairs.iter().find(|(k, _)| k.as_ref() == "data") {
                             let bytes: Vec<u8> = data.iter().filter_map(|v| v.as_integer().map(|n| n as u8)).collect();
@@ -246,10 +233,7 @@ mod tests {
 
     #[test]
     fn test_plist_value_object() {
-        let pairs: PlistObject = vec![(
-            Cow::Borrowed("key"),
-            PlistValue::String(Cow::Owned("value".to_string())),
-        )];
+        let pairs: PlistObject = vec![(Cow::Borrowed("key"), PlistValue::String(Cow::Owned("value".to_string())))];
         let val = PlistValue::Object(pairs);
         assert!(val.as_object().is_some());
         assert_eq!(val.get("key").and_then(|v| v.as_str()), Some("value"));
@@ -258,10 +242,7 @@ mod tests {
     #[test]
     fn test_serialize_roundtrip() {
         let pairs: PlistObject<'static> = vec![
-            (
-                Cow::Owned("name".to_string()),
-                PlistValue::String(Cow::Owned("test".to_string())),
-            ),
+            (Cow::Owned("name".to_string()), PlistValue::String(Cow::Owned("test".to_string()))),
             (Cow::Owned("version".to_string()), PlistValue::Integer(1)),
         ];
         let val: PlistValue<'static> = PlistValue::Object(pairs);

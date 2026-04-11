@@ -3,92 +3,33 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "*.md"
-      - "LICENSE"
-      - ".claude/**"
-      - ".vscode/**"
-      - ".prettierignore"
-      - "rustfmt.toml"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "*.md"
-      - "LICENSE"
-      - ".claude/**"
-      - ".vscode/**"
-      - ".prettierignore"
-      - "rustfmt.toml"
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
-    name: Test
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --no-default-features
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
 
-  build-native:
-    name: Build - ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            os: macos-latest
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            cross: true
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install
-
-      # Install zig for cross-compilation (linux arm64 on x86 runner)
-      - name: Install zig
-        if: matrix.cross
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.13.0
-
-      - name: Build
-        run: npx napi build --platform --release --target ${{ matrix.target }} ${{ matrix.cross && '--zig' || '' }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bindings-${{ matrix.target }}
-          path: "*.node"
-
-  js-test:
-    name: JS Integration Test
-    needs: build-native
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: actions/download-artifact@v4
-        with:
-          name: bindings-aarch64-apple-darwin
-      - run: npm install
-      - run: npm test
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -- -D warnings
+      - run: cargo fmt --check

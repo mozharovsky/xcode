@@ -54,10 +54,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
-        Lexer {
-            input: input.as_bytes(),
-            pos: 0,
-        }
+        Lexer { input: input.as_bytes(), pos: 0 }
     }
 
     /// Skip whitespace and comments in bulk using fast byte scanning.
@@ -140,11 +137,7 @@ impl<'a> Lexer<'a> {
         let raw = std::str::from_utf8(&bytes[start..end]).map_err(|e| format!("Invalid UTF-8 in string: {}", e))?;
         self.pos = end + 1; // skip closing quote
 
-        let unescaped = if has_escape {
-            unescape_string(raw)
-        } else {
-            raw.to_string()
-        };
+        let unescaped = if has_escape { unescape_string(raw) } else { raw.to_string() };
         Ok(Token::QuotedString(unescaped))
     }
 
@@ -246,10 +239,7 @@ impl<'a> Lexer<'a> {
             b'<' => self.read_data_literal().map(Some),
             b'"' | b'\'' => self.read_quoted_string().map(Some),
             _ if IS_LITERAL_CHAR[b as usize] => Ok(Some(self.read_string_literal())),
-            _ => Err(format!(
-                "Unexpected character '{}' (0x{:02x}) at offset {}",
-                b as char, b, self.pos
-            )),
+            _ => Err(format!("Unexpected character '{}' (0x{:02x}) at offset {}", b as char, b, self.pos)),
         }
     }
 

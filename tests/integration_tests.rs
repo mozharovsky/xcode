@@ -1,9 +1,9 @@
 /// Integration tests for the pbxproj parser and writer.
 ///
 /// These tests mirror the original TypeScript test suite from @bacons/xcode.
-use xcode::parser::parse;
-use xcode::types::plist::PlistValue;
-use xcode::writer::serializer::build;
+use xcodekit::parser::parse;
+use xcodekit::types::plist::PlistValue;
+use xcodekit::writer::serializer::build;
 
 mod fixture_tests {
     use super::*;
@@ -106,11 +106,7 @@ mod fixture_tests {
             }
         }
 
-        eprintln!(
-            "\nRound-trip results: {}/{} passed",
-            passed.len(),
-            IN_OUT_FIXTURES.len()
-        );
+        eprintln!("\nRound-trip results: {}/{} passed", passed.len(), IN_OUT_FIXTURES.len());
         for f in &passed {
             eprintln!("  PASS: {}", f);
         }
@@ -347,10 +343,7 @@ mod unicode_tests {
     fn test_complex_nested_escapes() {
         let input = r#"{ complex = "prefix\n\tindented\\backslash\U0041suffix"; }"#;
         let result = parse(input).unwrap();
-        assert_eq!(
-            result.get("complex").and_then(|v| v.as_str()),
-            Some("prefix\n\tindented\\backslashAsuffix")
-        );
+        assert_eq!(result.get("complex").and_then(|v| v.as_str()), Some("prefix\n\tindented\\backslashAsuffix"));
     }
 
     #[test]
