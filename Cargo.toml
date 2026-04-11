@@ -22,6 +22,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 plist = { version = "1", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 quick-xml = { version = "0.37", features = ["serialize"] }
 
 [dev-dependencies]

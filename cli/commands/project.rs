@@ -42,6 +42,14 @@ pub enum ProjectAction {
         #[arg(long)]
         json: bool,
     },
+    /// Show groups only (no files)
+    #[command(name = "list-groups")]
+    ListGroups {
+        /// Path to .pbxproj file
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Show the project group tree
     #[command(name = "list-tree")]
     ListTree {
@@ -53,6 +61,7 @@ pub enum ProjectAction {
 }
 
 fn open_project(path: &str) -> Result<XcodeProject, CliError> {
+    let _timer = output::verbose_timer("open project");
     if path == "-" {
         let (_, content) = output::read_project_input(path)?;
         XcodeProject::from_plist(&content).map_err(|e| CliError::parse_error(&e))
@@ -75,6 +84,7 @@ pub fn run(action: ProjectAction) -> Result<(), CliError> {
         ProjectAction::Health { path, json } => health(&path, json),
         ProjectAction::Dump { path } => dump(&path),
         ProjectAction::ListFiles { path, json } => list_files(&path, json),
+        ProjectAction::ListGroups { path, json } => list_groups(&path, json),
         ProjectAction::ListTree { path, json } => list_tree(&path, json),
     }
 }
@@ -208,6 +218,30 @@ fn list_files(path: &str, json: bool) -> Result<(), CliError> {
     } else {
         for (_, fpath, ftype) in &files {
             println!("{} ({})", fpath, ftype);
+        }
+    }
+    Ok(())
+}
+
+fn list_groups(path: &str, json: bool) -> Result<(), CliError> {
+    let project = open_project(path)?;
+    let groups: Vec<_> = project
+        .objects_by_isa("PBXGroup")
+        .iter()
+        .map(|g| {
+            let name = g.get_str("name").or_else(|| g.get_str("path")).unwrap_or("").to_string();
+            let child_count = g.get_array("children").map(|a| a.len()).unwrap_or(0);
+            serde_json::json!({ "uuid": g.uuid, "name": name, "childCount": child_count })
+        })
+        .collect();
+
+    if json {
+        output::print_json(&serde_json::json!({ "groups": groups }));
+    } else if groups.is_empty() {
+        println!("No groups");
+    } else {
+        for g in &groups {
+            println!("{} ({} children)", g["name"].as_str().unwrap_or(""), g["childCount"]);
         }
     }
     Ok(())

@@ -92,8 +92,7 @@ fn open(path: &str) -> Result<XcodeProject, CliError> {
 }
 
 fn save(project: &XcodeProject, path: &str) -> Result<(), CliError> {
-    let output = project.to_pbxproj();
-    std::fs::write(path, output).map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))
+    output::save_with_backup(path, &project.to_pbxproj())
 }
 
 pub fn run(action: TargetAction) -> Result<(), CliError> {

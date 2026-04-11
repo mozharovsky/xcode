@@ -1,6 +1,7 @@
 use std::process;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 
 mod commands;
 mod output;
@@ -9,6 +10,9 @@ mod resolve;
 #[derive(Parser)]
 #[command(name = "xcodekit", about = "Native Xcode project automation for AI agents, CI, and developer tooling")]
 struct Cli {
+    /// Enable verbose output (timing, diagnostics on stderr)
+    #[arg(long, short = 'v', global = true)]
+    verbose: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -107,10 +111,16 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: Shell,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
+    output::set_verbose(cli.verbose);
 
     let result = match cli.command {
         Command::Batch(args) => commands::batch::run(args),
@@ -139,6 +149,10 @@ fn main() {
             } else {
                 println!("xcodekit {}", env!("CARGO_PKG_VERSION"));
             }
+            Ok(())
+        }
+        Command::Completions { shell } => {
+            generate(shell, &mut Cli::command(), "xcodekit", &mut std::io::stdout());
             Ok(())
         }
     };

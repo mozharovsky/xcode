@@ -1,8 +1,46 @@
 use std::fmt;
 use std::io::Read;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use serde::Serialize;
+
+static VERBOSE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_verbose(v: bool) {
+    VERBOSE.store(v, Ordering::Relaxed);
+}
+
+#[allow(dead_code)]
+pub fn is_verbose() -> bool {
+    VERBOSE.load(Ordering::Relaxed)
+}
+
+#[allow(dead_code)]
+pub fn verbose_log(msg: &str) {
+    if is_verbose() {
+        eprintln!("[xcodekit] {}", msg);
+    }
+}
+
+pub fn verbose_timer(label: &str) -> VerboseTimer {
+    VerboseTimer { label: label.to_string(), start: Instant::now() }
+}
+
+pub struct VerboseTimer {
+    label: String,
+    start: Instant,
+}
+
+impl Drop for VerboseTimer {
+    fn drop(&mut self) {
+        if is_verbose() {
+            let elapsed = self.start.elapsed();
+            eprintln!("[xcodekit] {} in {:.1}ms", self.label, elapsed.as_secs_f64() * 1000.0);
+        }
+    }
+}
 
 /// Normalize a path: if it ends with `.xcodeproj`, append `/project.pbxproj`.
 pub fn normalize_project_path(path: &str) -> String {
@@ -11,6 +49,38 @@ pub fn normalize_project_path(path: &str) -> String {
     } else {
         path.to_string()
     }
+}
+
+/// Auto-detect a .xcodeproj or .pbxproj in the current directory.
+#[allow(dead_code)]
+pub fn auto_detect_project() -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    if let Ok(entries) = std::fs::read_dir(&cwd) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("xcodeproj") {
+                let pbxproj = path.join("project.pbxproj");
+                if pbxproj.exists() {
+                    return Some(pbxproj.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    if cwd.join("project.pbxproj").exists() {
+        return Some(cwd.join("project.pbxproj").to_string_lossy().to_string());
+    }
+    None
+}
+
+/// Save with optional .backup file creation.
+pub fn save_with_backup(path: &str, content: &str) -> Result<(), CliError> {
+    let backup_path = format!("{}.backup", path);
+    if Path::new(path).exists() {
+        std::fs::copy(path, &backup_path)
+            .map_err(|e| CliError::new(ErrorCode::WriteFailed, format!("Failed to create backup: {}", e)))?;
+        verbose_log(&format!("Backup saved to {}", backup_path));
+    }
+    std::fs::write(path, content).map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))
 }
 
 /// Read project content from a path or stdin (when path is "-").
