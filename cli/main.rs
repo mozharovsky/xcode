@@ -77,6 +77,26 @@ enum Command {
         #[command(subcommand)]
         action: commands::sync_group::SyncAction,
     },
+    /// Manage Xcode schemes (.xcscheme)
+    Scheme {
+        #[command(subcommand)]
+        action: commands::scheme::SchemeAction,
+    },
+    /// Manage Xcode workspaces (.xcworkspace)
+    Workspace {
+        #[command(subcommand)]
+        action: commands::workspace_cmd::WorkspaceAction,
+    },
+    /// Parse and flatten xcconfig files
+    Xcconfig {
+        #[command(subcommand)]
+        action: commands::xcconfig_cmd::XCConfigAction,
+    },
+    /// Manage breakpoints
+    Breakpoint {
+        #[command(subcommand)]
+        action: commands::breakpoint::BreakpointAction,
+    },
     /// Low-level object access (advanced)
     Object {
         #[command(subcommand)]
@@ -106,6 +126,10 @@ fn main() {
         Command::Spm { action } => commands::spm::run(action),
         Command::Plist { action } => commands::plist::run(action),
         Command::Sync { action } => commands::sync_group::run(action),
+        Command::Scheme { action } => commands::scheme::run(action),
+        Command::Workspace { action } => commands::workspace_cmd::run(action),
+        Command::Xcconfig { action } => commands::xcconfig_cmd::run(action),
+        Command::Breakpoint { action } => commands::breakpoint::run(action),
         Command::Object { action } => commands::object::run(action),
         Command::Version { json } => {
             if json {

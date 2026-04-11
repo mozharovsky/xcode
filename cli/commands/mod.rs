@@ -1,4 +1,5 @@
 pub mod batch;
+pub mod breakpoint;
 pub mod build_setting;
 pub mod dependency;
 pub mod doctor;
@@ -9,6 +10,9 @@ pub mod group;
 pub mod object;
 pub mod plist;
 pub mod project;
+pub mod scheme;
 pub mod spm;
 pub mod sync_group;
 pub mod target;
+pub mod workspace_cmd;
+pub mod xcconfig_cmd;

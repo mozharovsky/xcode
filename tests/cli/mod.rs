@@ -24,6 +24,7 @@ pub fn json_stdout(output: &std::process::Output) -> serde_json::Value {
 }
 
 mod batch_tests;
+mod breakpoint_tests;
 mod build_setting_tests;
 mod doctor_tests;
 mod file_tests;
@@ -33,8 +34,11 @@ mod object_tests;
 mod path_tests;
 mod plist_tests;
 mod project_tests;
+mod scheme_tests;
 mod spm_tests;
 mod stdin_tests;
 mod sync_group_tests;
 mod target_tests;
 mod version_tests;
+mod workspace_tests;
+mod xcconfig_tests;

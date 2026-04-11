@@ -15,12 +15,19 @@ pub fn generate_uuid(seed: &str, existing: &std::collections::HashSet<String>) -
     }
 }
 
+/// Generate a deterministic dashed UUID (8-4-4-4-12) from a seed string.
+pub fn generate_dashed_uuid(seed: &str) -> String {
+    let hex = md5_hex(seed);
+    format!("{}-{}-{}-{}-{}", &hex[..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
+}
+
+fn md5_hex(seed: &str) -> String {
+    let result = Md5::digest(seed.as_bytes());
+    result.iter().map(|b| format!("{:02X}", b)).collect()
+}
+
 fn make_uuid(seed: &str) -> String {
-    let mut hasher = Md5::new();
-    hasher.update(seed.as_bytes());
-    let result = hasher.finalize();
-    let hex: String = result.iter().map(|b| format!("{:02X}", b)).collect();
-    // XX + first 20 hex chars + XX
+    let hex = md5_hex(seed);
     format!("XX{}XX", &hex[..20])
 }
 

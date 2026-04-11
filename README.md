@@ -142,21 +142,57 @@ spm remove-product  <pbxproj> --target <name> --product <name>
 spm list            <pbxproj>
 ```
 
+### Schemes (.xcscheme)
+
+```
+scheme list              <xcodeproj>                                          # List all schemes
+scheme show              <xcodeproj> --scheme <name>                          # Dump scheme as JSON
+scheme create            <xcodeproj> --name <name> --target <name>            # Create minimal scheme
+scheme set-env           <xcodeproj> --scheme <name> --key <K> --value <V>    # Set env var
+scheme add-arg           <xcodeproj> --scheme <name> --arg <arg>              # Add launch argument
+scheme add-build-target  <xcodeproj> --scheme <name> --target <name> ...      # Add build target
+```
+
+### Workspaces (.xcworkspace)
+
+```
+workspace inspect         <xcworkspace>                                       # List contents
+workspace list-projects   <xcworkspace>                                       # List project refs
+workspace add-project     <xcworkspace> --project-path <path>                 # Add project
+workspace remove-project  <xcworkspace> --project-path <path>                 # Remove project
+workspace create          <path>                                              # Create empty workspace
+```
+
+### XCConfig (.xcconfig)
+
+```
+xcconfig parse    <file>                                                      # Parse to JSON
+xcconfig flatten  <file>                                                      # Resolve to key-value pairs
+```
+
+### Breakpoints
+
+```
+breakpoint list    <xcodeproj-or-file>                                        # List all breakpoints
+breakpoint add     <xcodeproj-or-file> --file <path> --line <n>               # Add file breakpoint
+breakpoint remove  <xcodeproj-or-file> --uuid <uuid>                          # Remove breakpoint
+```
+
 ### Plist
 
 ```
-plist parse  <file>                                                 # XML/binary plist to JSON
-plist build  --input <json> --output <file>                         # JSON to XML plist
+plist parse  <file>                                                           # XML/binary plist to JSON
+plist build  --input <json> --output <file>                                   # JSON to XML plist
 ```
 
 ### Advanced
 
 ```
-object get           <pbxproj> --uuid <uuid>                        # Inspect any object
-object get-property  <pbxproj> --uuid <uuid> --key <key>            # Read a property
-object set-property  <pbxproj> --uuid <uuid> --key <k> --value <v>  # Write a property
-object list-by-isa   <pbxproj> --isa <ISA>                          # List by type
-sync group add       <pbxproj> --target <name> --sync-path <p>      # Xcode 16+ file sync
+object get           <pbxproj> --uuid <uuid>                                  # Inspect any object
+object get-property  <pbxproj> --uuid <uuid> --key <key>                      # Read a property
+object set-property  <pbxproj> --uuid <uuid> --key <k> --value <v>            # Write a property
+object list-by-isa   <pbxproj> --isa <ISA>                                    # List by type
+sync group add       <pbxproj> --target <name> --sync-path <p>                # Xcode 16+ file sync
 sync group list      <pbxproj> --target <name>
 ```
 
@@ -192,7 +228,7 @@ Prebuilt binaries for macOS (x86_64, aarch64) and Linux (x86_64, aarch64) are av
 ## Development
 
 ```bash
-cargo test           # 165 tests
+cargo test           # 181 tests
 cargo bench          # parse/build benchmarks
 cargo clippy         # lint
 cargo fmt            # format

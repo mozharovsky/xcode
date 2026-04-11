@@ -1,6 +1,10 @@
+pub mod breakpoints;
 pub mod objects;
 pub mod parser;
 pub mod plist_xml;
 pub mod project;
+pub mod scheme;
 pub mod types;
+pub mod workspace;
 pub mod writer;
+pub mod xcconfig;
