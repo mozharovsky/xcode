@@ -51,6 +51,23 @@ fn duplicate_multitarget() {
     assert!(json_stdout(&out)["uuid"].is_string());
 }
 
+// ── Remove ──────────────────────────────────────────────────
+
+#[test]
+fn remove_dry_run() {
+    let out = xcodekit(&["target", "remove", &fixture("project.pbxproj"), "--target", "testproject", "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    assert_eq!(json["changed"], false);
+}
+
+#[test]
+fn remove_invalid_target() {
+    let out = xcodekit(&["target", "remove", &fixture("project.pbxproj"), "--target", "nonexistent"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("TARGET_NOT_FOUND"));
+}
+
 // ── List / Show ──────────────────────────────────────────────
 
 #[test]

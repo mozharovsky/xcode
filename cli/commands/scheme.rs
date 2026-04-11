@@ -70,6 +70,46 @@ pub enum SchemeAction {
         #[arg(long)]
         json: bool,
     },
+    /// Duplicate a scheme under a new name
+    Duplicate {
+        path: String,
+        #[arg(long)]
+        scheme: String,
+        #[arg(long, name = "new-name")]
+        new_name: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove a scheme file
+    Remove {
+        path: String,
+        #[arg(long)]
+        scheme: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Set build configuration for run/archive actions
+    #[command(name = "set-config")]
+    SetConfig {
+        path: String,
+        #[arg(long)]
+        scheme: String,
+        #[arg(long)]
+        run: Option<String>,
+        #[arg(long)]
+        archive: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Enable code coverage on the test action
+    #[command(name = "enable-coverage")]
+    EnableCoverage {
+        path: String,
+        #[arg(long)]
+        scheme: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn scheme_path(xcodeproj: &str, name: &str) -> String {
@@ -174,6 +214,59 @@ pub fn run(action: SchemeAction) -> Result<(), CliError> {
                 output::print_json(&serde_json::json!({ "changed": true }));
             } else {
                 println!("Added build target '{}' to scheme '{}'", target, scheme);
+            }
+            Ok(())
+        }
+
+        SchemeAction::Duplicate { path, scheme, new_name, json } => {
+            let scheme_file = scheme_path(&path, &scheme);
+            let s = Scheme::from_file(&scheme_file).map_err(|e| CliError::new(ErrorCode::ParseError, e))?;
+            let dup = s.duplicate();
+            let new_file = scheme_path(&path, &new_name);
+            let dir = std::path::Path::new(&new_file).parent().unwrap();
+            std::fs::create_dir_all(dir).map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))?;
+            dup.save(&new_file).map_err(|e| CliError::new(ErrorCode::WriteFailed, e))?;
+            if json {
+                output::print_json(&serde_json::json!({ "created": new_name, "path": new_file }));
+            } else {
+                println!("Duplicated scheme '{}' as '{}' at {}", scheme, new_name, new_file);
+            }
+            Ok(())
+        }
+
+        SchemeAction::Remove { path, scheme, json } => {
+            let scheme_file = scheme_path(&path, &scheme);
+            std::fs::remove_file(&scheme_file).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e.to_string()))?;
+            if json {
+                output::print_json(&serde_json::json!({ "removed": scheme }));
+            } else {
+                println!("Removed scheme '{}'", scheme);
+            }
+            Ok(())
+        }
+
+        SchemeAction::SetConfig { path, scheme, run, archive, json } => {
+            let scheme_file = scheme_path(&path, &scheme);
+            let mut s = Scheme::from_file(&scheme_file).map_err(|e| CliError::new(ErrorCode::ParseError, e))?;
+            s.set_build_configuration(run.as_deref(), archive.as_deref());
+            s.save(&scheme_file).map_err(|e| CliError::new(ErrorCode::WriteFailed, e))?;
+            if json {
+                output::print_json(&serde_json::json!({ "changed": true }));
+            } else {
+                println!("Updated build configuration for scheme '{}'", scheme);
+            }
+            Ok(())
+        }
+
+        SchemeAction::EnableCoverage { path, scheme, json } => {
+            let scheme_file = scheme_path(&path, &scheme);
+            let mut s = Scheme::from_file(&scheme_file).map_err(|e| CliError::new(ErrorCode::ParseError, e))?;
+            s.set_test_coverage(true);
+            s.save(&scheme_file).map_err(|e| CliError::new(ErrorCode::WriteFailed, e))?;
+            if json {
+                output::print_json(&serde_json::json!({ "changed": true }));
+            } else {
+                println!("Enabled code coverage on scheme '{}'", scheme);
             }
             Ok(())
         }

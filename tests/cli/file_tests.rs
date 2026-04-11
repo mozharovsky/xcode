@@ -21,10 +21,25 @@ fn remove_not_found() {
 }
 
 #[test]
+fn list_files() {
+    let out = xcodekit(&["file", "list", &fixture("project.pbxproj"), "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    let files = json["files"].as_array().unwrap();
+    assert!(!files.is_empty());
+    assert!(files[0]["uuid"].is_string());
+    assert!(files[0]["path"].is_string());
+}
+
+#[test]
 fn help() {
     let out = xcodekit(&["file", "--help"]);
     assert!(out.status.success());
     let text = stdout(&out);
     assert!(text.contains("add"));
     assert!(text.contains("remove"));
+    assert!(text.contains("list"));
+    assert!(text.contains("move"));
+    assert!(text.contains("add-to-target"));
+    assert!(text.contains("remove-from-target"));
 }

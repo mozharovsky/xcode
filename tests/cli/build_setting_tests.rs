@@ -99,6 +99,32 @@ fn add_script_invalid_target() {
     assert!(stderr(&out).contains("TARGET_NOT_FOUND"));
 }
 
+// ── List all settings ────────────────────────────────────────
+
+#[test]
+fn list_all_settings() {
+    let out = xcodekit(&["build", "setting", "list", &fixture("project.pbxproj"), "--target", "testproject", "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    let settings = json["settings"].as_array().unwrap();
+    assert!(!settings.is_empty());
+    assert!(settings[0]["key"].is_string());
+    assert!(settings[0]["value"].is_string());
+}
+
+// ── List configs ─────────────────────────────────────────────
+
+#[test]
+fn list_configs() {
+    let out =
+        xcodekit(&["build", "setting", "configs", &fixture("project.pbxproj"), "--target", "testproject", "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    let configs = json["configs"].as_array().unwrap();
+    assert!(configs.contains(&serde_json::json!("Debug")));
+    assert!(configs.contains(&serde_json::json!("Release")));
+}
+
 // ── Build settings ───────────────────────────────────────────
 
 #[test]

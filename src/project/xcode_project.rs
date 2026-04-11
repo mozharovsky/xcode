@@ -1661,6 +1661,283 @@ impl XcodeProject {
         }
         Ok(())
     }
+
+    // ── Additional operations ─────────────────────────────────────
+
+    /// Remove a target and all its associated objects (build phases, configs, product ref).
+    /// Also removes it from PBXProject.targets.
+    pub fn remove_target(&mut self, target_uuid: &str) -> Result<(), String> {
+        let target = self.get_object(target_uuid).ok_or_else(|| format!("Target '{}' not found", target_uuid))?.clone();
+
+        // Remove build configurations and config list
+        if let Some(cl_uuid) = target.get_str("buildConfigurationList") {
+            if let Some(cl) = self.get_object(cl_uuid) {
+                if let Some(configs) = cl.get_array("buildConfigurations") {
+                    let uuids: Vec<String> = configs.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                    for uuid in uuids {
+                        self.remove_object(&uuid);
+                    }
+                }
+            }
+            self.remove_object(cl_uuid);
+        }
+
+        // Remove build phases and their build files
+        if let Some(phases) = target.get_array("buildPhases") {
+            for phase_val in phases {
+                if let Some(phase_uuid) = phase_val.as_str() {
+                    if let Some(phase) = self.get_object(phase_uuid) {
+                        if let Some(files) = phase.get_array("files") {
+                            let file_uuids: Vec<String> =
+                                files.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                            for fu in file_uuids {
+                                self.remove_object(&fu);
+                            }
+                        }
+                    }
+                    self.remove_object(phase_uuid);
+                }
+            }
+        }
+
+        // Remove product reference
+        if let Some(prod_uuid) = target.get_str("productReference") {
+            self.remove_object(prod_uuid);
+        }
+
+        // Remove target dependencies
+        if let Some(deps) = target.get_array("dependencies") {
+            let dep_uuids: Vec<String> = deps.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+            for du in dep_uuids {
+                self.remove_object(&du);
+            }
+        }
+
+        // Remove from PBXProject.targets
+        let root_uuid = self.root_object_uuid.clone();
+        if let Some(root) = self.get_object_mut(&root_uuid) {
+            if let Some(PlistValue::Array(ref mut targets)) = root.props.get_mut("targets") {
+                targets.retain(|v| v.as_str() != Some(target_uuid));
+            }
+        }
+
+        self.remove_object(target_uuid);
+        Ok(())
+    }
+
+    /// Move/rename a file reference by updating its path.
+    pub fn move_file(&mut self, file_ref_uuid: &str, new_path: &str) -> Result<(), String> {
+        let obj = self
+            .get_object_mut(file_ref_uuid)
+            .ok_or_else(|| format!("File reference '{}' not found", file_ref_uuid))?;
+        obj.set_str("path", new_path);
+        if let Some(new_name) = std::path::Path::new(new_path).file_name().and_then(|n| n.to_str()) {
+            obj.set_str("name", new_name);
+        }
+        Ok(())
+    }
+
+    /// Add an existing file reference to a target's appropriate build phase.
+    pub fn add_file_to_target(&mut self, file_ref_uuid: &str, target_uuid: &str) -> Result<String, String> {
+        let file_ref =
+            self.get_object(file_ref_uuid).ok_or_else(|| format!("File reference '{}' not found", file_ref_uuid))?;
+        let file_type = file_ref
+            .get_str("lastKnownFileType")
+            .or_else(|| file_ref.get_str("explicitFileType"))
+            .unwrap_or("")
+            .to_string();
+
+        let phase_isa = if is_source_file(&file_type) {
+            "PBXSourcesBuildPhase"
+        } else if is_resource_file(&file_type) {
+            "PBXResourcesBuildPhase"
+        } else {
+            "PBXFrameworksBuildPhase"
+        };
+
+        let phase_uuid = self.ensure_build_phase(target_uuid, phase_isa)?;
+        self.add_build_file(&phase_uuid, file_ref_uuid)
+    }
+
+    /// Remove a file reference from a specific target's build phases (but keep it in the project).
+    pub fn remove_file_from_target(&mut self, file_ref_uuid: &str, target_uuid: &str) -> Result<(), String> {
+        let target = self.get_object(target_uuid).ok_or_else(|| format!("Target '{}' not found", target_uuid))?;
+        let phases = target
+            .get_array("buildPhases")
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        let mut removed = false;
+        for phase_uuid in &phases {
+            let build_file_uuids: Vec<String> = self
+                .get_object(phase_uuid)
+                .and_then(|p| p.get_array("files"))
+                .map(|files| {
+                    files
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .filter(|bf_uuid| {
+                            self.get_object(bf_uuid)
+                                .and_then(|bf| bf.get_str("fileRef"))
+                                .map(|fr| fr == file_ref_uuid)
+                                .unwrap_or(false)
+                        })
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            for bf_uuid in &build_file_uuids {
+                self.remove_object(bf_uuid);
+                removed = true;
+            }
+        }
+
+        if !removed {
+            return Err(format!("File '{}' not found in target '{}'", file_ref_uuid, target_uuid));
+        }
+        Ok(())
+    }
+
+    /// Get all build settings for a target (from first configuration found).
+    pub fn get_all_build_settings(&self, target_uuid: &str) -> Result<Vec<(String, String)>, String> {
+        let target = self.get_object(target_uuid).ok_or_else(|| format!("Target '{}' not found", target_uuid))?;
+        let cl_uuid = target.get_str("buildConfigurationList").ok_or("No buildConfigurationList")?.to_string();
+        let cl = self.get_object(&cl_uuid).ok_or("Configuration list not found")?;
+        let configs = cl.get_array("buildConfigurations").ok_or("No buildConfigurations")?;
+
+        let mut settings = Vec::new();
+        if let Some(first_uuid) = configs.first().and_then(|v| v.as_str()) {
+            if let Some(config) = self.get_object(first_uuid) {
+                if let Some(bs) = config.get_object("buildSettings") {
+                    for (k, v) in bs {
+                        let val = v.as_str().map(|s| s.to_string()).unwrap_or_else(|| format!("{:?}", v));
+                        settings.push((k.to_string(), val));
+                    }
+                }
+            }
+        }
+        Ok(settings)
+    }
+
+    /// List build configuration names for a target.
+    pub fn list_build_configs(&self, target_uuid: &str) -> Result<Vec<String>, String> {
+        let target = self.get_object(target_uuid).ok_or_else(|| format!("Target '{}' not found", target_uuid))?;
+        let cl_uuid = target.get_str("buildConfigurationList").ok_or("No buildConfigurationList")?.to_string();
+        let cl = self.get_object(&cl_uuid).ok_or("Configuration list not found")?;
+        let configs = cl.get_array("buildConfigurations").ok_or("No buildConfigurations")?;
+
+        let mut names = Vec::new();
+        for val in configs {
+            if let Some(uuid) = val.as_str() {
+                if let Some(cfg) = self.get_object(uuid) {
+                    if let Some(name) = cfg.get_str("name") {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+        }
+        Ok(names)
+    }
+
+    /// Remove a Swift package reference by URL (removes from project + all targets).
+    pub fn remove_swift_package_by_url(&mut self, url: &str) -> Result<(), String> {
+        let pkg_uuid = self
+            .objects_by_isa("XCRemoteSwiftPackageReference")
+            .iter()
+            .find(|p| p.get_str("repositoryURL").map(|u| u == url).unwrap_or(false))
+            .map(|p| p.uuid.clone())
+            .ok_or_else(|| format!("Package with URL '{}' not found", url))?;
+
+        // Remove all product dependencies referencing this package
+        let product_dep_uuids: Vec<String> = self
+            .objects_by_isa("XCSwiftPackageProductDependency")
+            .iter()
+            .filter(|d| d.get_str("package") == Some(&pkg_uuid))
+            .map(|d| d.uuid.clone())
+            .collect();
+
+        for dep_uuid in &product_dep_uuids {
+            // Remove build files referencing this product
+            let bf_uuids: Vec<String> = self
+                .objects_by_isa("PBXBuildFile")
+                .iter()
+                .filter(|bf| bf.get_str("productRef") == Some(dep_uuid))
+                .map(|bf| bf.uuid.clone())
+                .collect();
+            for bf in &bf_uuids {
+                self.remove_object(bf);
+            }
+            self.remove_object(dep_uuid);
+        }
+
+        // Remove from PBXProject.packageReferences
+        let root_uuid = self.root_object_uuid.clone();
+        if let Some(root) = self.get_object_mut(&root_uuid) {
+            if let Some(PlistValue::Array(ref mut refs)) = root.props.get_mut("packageReferences") {
+                refs.retain(|v| v.as_str() != Some(&pkg_uuid));
+            }
+        }
+
+        self.remove_object(&pkg_uuid);
+        Ok(())
+    }
+
+    /// Remove orphaned references from the project.
+    pub fn remove_orphaned_references(&mut self) -> Vec<OrphanedReference> {
+        let orphans = self.find_orphaned_references();
+        for orphan in &orphans {
+            if let Some(obj) = self.get_object_mut(&orphan.referrer_uuid) {
+                if let Some(PlistValue::Array(ref mut arr)) = obj.props.get_mut(orphan.property.as_str()) {
+                    arr.retain(|v| v.as_str() != Some(&orphan.orphan_uuid));
+                }
+            }
+        }
+        orphans
+    }
+
+    /// List all files in the project as (uuid, path, file_type) tuples.
+    pub fn list_all_files(&self) -> Vec<(String, String, String)> {
+        self.objects_by_isa("PBXFileReference")
+            .iter()
+            .map(|f| {
+                let path = f.get_str("path").unwrap_or("").to_string();
+                let file_type =
+                    f.get_str("lastKnownFileType").or_else(|| f.get_str("explicitFileType")).unwrap_or("").to_string();
+                (f.uuid.clone(), path, file_type)
+            })
+            .collect()
+    }
+
+    /// Build a tree structure of the project groups and files.
+    pub fn build_group_tree(&self, group_uuid: &str) -> serde_json::Value {
+        let obj = match self.get_object(group_uuid) {
+            Some(o) => o,
+            None => return serde_json::json!(null),
+        };
+
+        let name = obj.get_str("name").or_else(|| obj.get_str("path")).unwrap_or("").to_string();
+        let children = obj.get_array("children").map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|child_uuid| {
+                    if let Some(child) = self.get_object(child_uuid) {
+                        if child.isa == "PBXGroup" || child.isa == "PBXVariantGroup" {
+                            self.build_group_tree(child_uuid)
+                        } else {
+                            let child_name =
+                                child.get_str("name").or_else(|| child.get_str("path")).unwrap_or("").to_string();
+                            serde_json::json!({ "uuid": child_uuid, "name": child_name, "isa": child.isa })
+                        }
+                    } else {
+                        serde_json::json!({ "uuid": child_uuid, "missing": true })
+                    }
+                })
+                .collect::<Vec<_>>()
+        });
+
+        serde_json::json!({ "uuid": group_uuid, "name": name, "isa": obj.isa, "children": children })
+    }
 }
 
 fn should_skip_file(name: &str) -> bool {

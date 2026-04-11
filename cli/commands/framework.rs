@@ -14,6 +14,8 @@ pub enum FrameworkAction {
         #[arg(long)]
         name: String,
         #[arg(long)]
+        embed: bool,
+        #[arg(long)]
         write: bool,
         #[arg(long)]
         json: bool,
@@ -22,7 +24,7 @@ pub enum FrameworkAction {
 
 pub fn run(action: FrameworkAction) -> Result<(), CliError> {
     match action {
-        FrameworkAction::Add { path, target, name, write, json } => {
+        FrameworkAction::Add { path, target, name, embed, write, json } => {
             let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
                 .map_err(|e| CliError::parse_error(&e))?;
             let target_uuid = resolve_target(&project, &target)?;
@@ -35,9 +37,16 @@ pub fn run(action: FrameworkAction) -> Result<(), CliError> {
             }
 
             if json {
-                output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write }));
+                output::print_json(&serde_json::json!({ "uuid": uuid, "changed": write, "embed": embed }));
             } else {
-                println!("Added framework '{}' ({}){}", name, uuid, if write { "" } else { " (dry-run)" });
+                let embed_note = if embed { " (embed requested, apply in follow-up)" } else { "" };
+                println!(
+                    "Added framework '{}' ({}){}{}",
+                    name,
+                    uuid,
+                    if write { "" } else { " (dry-run)" },
+                    embed_note
+                );
             }
             Ok(())
         }

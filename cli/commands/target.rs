@@ -59,6 +59,16 @@ pub enum TargetAction {
         #[arg(long)]
         json: bool,
     },
+    /// Remove a target and all associated objects
+    Remove {
+        path: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
     /// List targets embedded in a host target
     #[command(name = "list-embedded")]
     ListEmbedded {
@@ -211,6 +221,23 @@ pub fn run(action: TargetAction) -> Result<(), CliError> {
                     new_uuid,
                     if write { "" } else { " (dry-run, use --write to save)" }
                 );
+            }
+            Ok(())
+        }
+
+        TargetAction::Remove { path, target, write, json } => {
+            let mut project = open(&path)?;
+            let uuid = resolve_target(&project, &target)?;
+            project.remove_target(&uuid).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "changed": write }));
+            } else {
+                println!("Removed target '{}'{}", target, if write { "" } else { " (dry-run, use --write to save)" });
             }
             Ok(())
         }

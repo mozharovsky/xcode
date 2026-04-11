@@ -17,6 +17,15 @@ fn orphans_malformed() {
 }
 
 #[test]
+fn fix_dry_run() {
+    let out = xcodekit(&["doctor", "fix", &fixture("project.pbxproj"), "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    assert!(json["removedCount"].is_number());
+    assert_eq!(json["changed"], false);
+}
+
+#[test]
 fn summary() {
     let out = xcodekit(&["doctor", "summary", &fixture("project.pbxproj"), "--json"]);
     assert!(out.status.success());

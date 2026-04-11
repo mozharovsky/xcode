@@ -64,6 +64,17 @@ pub enum SpmAction {
         #[arg(long)]
         json: bool,
     },
+    /// Remove a Swift package by repository URL
+    #[command(name = "remove-package")]
+    RemovePackage {
+        path: String,
+        #[arg(long)]
+        url: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn open(path: &str) -> Result<XcodeProject, CliError> {
@@ -179,6 +190,22 @@ pub fn run(action: SpmAction) -> Result<(), CliError> {
                     target,
                     if write { "" } else { " (dry-run)" }
                 );
+            }
+            Ok(())
+        }
+
+        SpmAction::RemovePackage { path, url, write, json } => {
+            let mut project = open(&path)?;
+            project.remove_swift_package_by_url(&url).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "changed": write }));
+            } else {
+                println!("Removed package '{}'{}", url, if write { "" } else { " (dry-run, use --write to save)" });
             }
             Ok(())
         }

@@ -2,7 +2,7 @@ use clap::Subcommand;
 use xcodekit::project::XcodeProject;
 
 use crate::output::{self, CliError, ErrorCode};
-use crate::resolve::resolve_group;
+use crate::resolve::{resolve_group, resolve_target};
 
 #[derive(Subcommand)]
 pub enum FileAction {
@@ -25,6 +25,50 @@ pub enum FileAction {
         file: String,
         #[arg(long)]
         write: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Move/rename a file reference by updating its path
+    Move {
+        path: String,
+        #[arg(long)]
+        file: String,
+        #[arg(long, name = "new-path")]
+        new_path: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add an existing file reference to a target's build phase
+    #[command(name = "add-to-target")]
+    AddToTarget {
+        path: String,
+        #[arg(long)]
+        file: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove a file reference from a target's build phases (keeps it in the project)
+    #[command(name = "remove-from-target")]
+    RemoveFromTarget {
+        path: String,
+        #[arg(long)]
+        file: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        write: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List all file references in the project
+    List {
+        path: String,
         #[arg(long)]
         json: bool,
     },
@@ -72,6 +116,99 @@ pub fn run(action: FileAction) -> Result<(), CliError> {
                 output::print_json(&serde_json::json!({ "changed": true }));
             } else {
                 println!("Removed file '{}'{}", file, if write { "" } else { " (dry-run)" });
+            }
+            Ok(())
+        }
+
+        FileAction::Move { path, file, new_path, write, json } => {
+            let mut project = open(&path)?;
+            let file_uuid = resolve_file_ref(&project, &file)?;
+            project.move_file(&file_uuid, &new_path).map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "changed": write }));
+            } else {
+                println!(
+                    "Moved file '{}' to '{}'{}",
+                    file,
+                    new_path,
+                    if write { "" } else { " (dry-run, use --write to save)" }
+                );
+            }
+            Ok(())
+        }
+
+        FileAction::AddToTarget { path, file, target, write, json } => {
+            let mut project = open(&path)?;
+            let file_uuid = resolve_file_ref(&project, &file)?;
+            let target_uuid = resolve_target(&project, &target)?;
+            let bf_uuid = project
+                .add_file_to_target(&file_uuid, &target_uuid)
+                .map_err(|e| CliError::new(ErrorCode::AddFailed, e))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "uuid": bf_uuid, "changed": write }));
+            } else {
+                println!(
+                    "Added file '{}' to target '{}' ({}){}",
+                    file,
+                    target,
+                    bf_uuid,
+                    if write { "" } else { " (dry-run, use --write to save)" }
+                );
+            }
+            Ok(())
+        }
+
+        FileAction::RemoveFromTarget { path, file, target, write, json } => {
+            let mut project = open(&path)?;
+            let file_uuid = resolve_file_ref(&project, &file)?;
+            let target_uuid = resolve_target(&project, &target)?;
+            project
+                .remove_file_from_target(&file_uuid, &target_uuid)
+                .map_err(|e| CliError::new(ErrorCode::RemoveFailed, e))?;
+
+            if write {
+                save(&project, &path)?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({ "changed": write }));
+            } else {
+                println!(
+                    "Removed file '{}' from target '{}'{}",
+                    file,
+                    target,
+                    if write { "" } else { " (dry-run, use --write to save)" }
+                );
+            }
+            Ok(())
+        }
+
+        FileAction::List { path, json } => {
+            let project = open(&path)?;
+            let files = project.list_all_files();
+
+            if json {
+                let entries: Vec<_> = files
+                    .iter()
+                    .map(|(uuid, fpath, ftype)| serde_json::json!({ "uuid": uuid, "path": fpath, "fileType": ftype }))
+                    .collect();
+                output::print_json(&serde_json::json!({ "files": entries }));
+            } else if files.is_empty() {
+                println!("No file references");
+            } else {
+                for (_, fpath, ftype) in &files {
+                    println!("{} ({})", fpath, ftype);
+                }
             }
             Ok(())
         }

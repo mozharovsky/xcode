@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use xcodekit::project::XcodeProject;
 
-use crate::output::{self, CliError};
+use crate::output::{self, CliError, ErrorCode};
 
 #[derive(Subcommand)]
 pub enum DoctorAction {
@@ -14,6 +14,14 @@ pub enum DoctorAction {
     /// Show a project health summary
     Summary {
         path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Auto-fix: remove orphaned references
+    Fix {
+        path: String,
+        #[arg(long)]
+        write: bool,
         #[arg(long)]
         json: bool,
     },
@@ -49,6 +57,34 @@ pub fn run(action: DoctorAction) -> Result<(), CliError> {
                 for o in &orphans {
                     println!("  {} > {}.{} > {}", o.referrer_uuid, o.referrer_isa, o.property, o.orphan_uuid);
                 }
+            }
+            Ok(())
+        }
+
+        DoctorAction::Fix { path, write, json } => {
+            let mut project = XcodeProject::open(&crate::output::normalize_project_path(&path))
+                .map_err(|e| CliError::parse_error(&e))?;
+            let removed = project.remove_orphaned_references();
+
+            if write {
+                let resolved = crate::output::normalize_project_path(&path);
+                std::fs::write(&resolved, project.to_pbxproj())
+                    .map_err(|e| CliError::new(ErrorCode::WriteFailed, e.to_string()))?;
+            }
+
+            if json {
+                output::print_json(&serde_json::json!({
+                    "removedCount": removed.len(),
+                    "changed": write,
+                }));
+            } else if removed.is_empty() {
+                println!("No orphaned references to fix.");
+            } else {
+                println!(
+                    "Removed {} orphaned reference(s){}",
+                    removed.len(),
+                    if write { "" } else { " (dry-run, use --write to save)" }
+                );
             }
             Ok(())
         }

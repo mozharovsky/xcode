@@ -34,6 +34,22 @@ pub enum ProjectAction {
         /// Path to .pbxproj file
         path: String,
     },
+    /// List all file references in the project
+    #[command(name = "list-files")]
+    ListFiles {
+        /// Path to .pbxproj file
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show the project group tree
+    #[command(name = "list-tree")]
+    ListTree {
+        /// Path to .pbxproj file
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn open_project(path: &str) -> Result<XcodeProject, CliError> {
@@ -58,6 +74,8 @@ pub fn run(action: ProjectAction) -> Result<(), CliError> {
         ProjectAction::Targets { path, json } => targets(&path, json),
         ProjectAction::Health { path, json } => health(&path, json),
         ProjectAction::Dump { path } => dump(&path),
+        ProjectAction::ListFiles { path, json } => list_files(&path, json),
+        ProjectAction::ListTree { path, json } => list_tree(&path, json),
     }
 }
 
@@ -172,5 +190,40 @@ fn dump(path: &str) -> Result<(), CliError> {
     let plist = xcodekit::parser::parse(&content).map_err(|e| CliError::parse_error(&e))?;
     let json = serde_json::to_value(&plist).map_err(|e| CliError::new(ErrorCode::SerializeError, e.to_string()))?;
     output::print_json(&json);
+    Ok(())
+}
+
+fn list_files(path: &str, json: bool) -> Result<(), CliError> {
+    let project = open_project(path)?;
+    let files = project.list_all_files();
+
+    if json {
+        let entries: Vec<_> = files
+            .iter()
+            .map(|(uuid, fpath, ftype)| serde_json::json!({ "uuid": uuid, "path": fpath, "fileType": ftype }))
+            .collect();
+        output::print_json(&serde_json::json!({ "files": entries }));
+    } else if files.is_empty() {
+        println!("No file references");
+    } else {
+        for (_, fpath, ftype) in &files {
+            println!("{} ({})", fpath, ftype);
+        }
+    }
+    Ok(())
+}
+
+fn list_tree(path: &str, json: bool) -> Result<(), CliError> {
+    let project = open_project(path)?;
+    let main_group = project
+        .main_group_uuid()
+        .ok_or_else(|| CliError::new(ErrorCode::ObjectNotFound, "No main group found".to_string()))?;
+    let tree = project.build_group_tree(&main_group);
+
+    if json {
+        output::print_json(&tree);
+    } else {
+        println!("{}", serde_json::to_string_pretty(&tree).unwrap_or_else(|_| "{}".to_string()));
+    }
     Ok(())
 }

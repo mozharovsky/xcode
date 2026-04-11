@@ -60,6 +60,22 @@ pub enum SettingAction {
         #[arg(long)]
         json: bool,
     },
+    /// List all build settings for a target
+    List {
+        path: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List build configuration names for a target
+    Configs {
+        path: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -181,6 +197,43 @@ fn run_setting(action: SettingAction) -> Result<(), CliError> {
                 output::print_json(&serde_json::json!({ "changed": write }));
             } else {
                 println!("Removed {}{}", key, if write { "" } else { " (dry-run, use --write to save)" });
+            }
+            Ok(())
+        }
+
+        SettingAction::List { path, target, json } => {
+            let project = open(&path)?;
+            let uuid = resolve_target(&project, &target)?;
+            let settings =
+                project.get_all_build_settings(&uuid).map_err(|e| CliError::new(ErrorCode::ObjectNotFound, e))?;
+
+            if json {
+                let entries: Vec<_> =
+                    settings.iter().map(|(k, v)| serde_json::json!({ "key": k, "value": v })).collect();
+                output::print_json(&serde_json::json!({ "settings": entries }));
+            } else if settings.is_empty() {
+                println!("No build settings");
+            } else {
+                for (k, v) in &settings {
+                    println!("{} = {}", k, v);
+                }
+            }
+            Ok(())
+        }
+
+        SettingAction::Configs { path, target, json } => {
+            let project = open(&path)?;
+            let uuid = resolve_target(&project, &target)?;
+            let configs = project.list_build_configs(&uuid).map_err(|e| CliError::new(ErrorCode::ObjectNotFound, e))?;
+
+            if json {
+                output::print_json(&serde_json::json!({ "configs": configs }));
+            } else if configs.is_empty() {
+                println!("No build configurations");
+            } else {
+                for c in &configs {
+                    println!("{}", c);
+                }
             }
             Ok(())
         }

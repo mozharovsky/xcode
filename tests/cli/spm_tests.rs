@@ -43,6 +43,19 @@ fn add_local_dry_run() {
 }
 
 #[test]
+fn remove_package_dry_run() {
+    let list_out = xcodekit(&["spm", "list", &fixture("006-spm.pbxproj"), "--json"]);
+    let packages = json_stdout(&list_out)["packages"].as_array().unwrap().clone();
+    assert!(!packages.is_empty());
+    let url = packages[0]["location"].as_str().unwrap();
+
+    let out = xcodekit(&["spm", "remove-package", &fixture("006-spm.pbxproj"), "--url", url, "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    assert_eq!(json["changed"], false);
+}
+
+#[test]
 fn help() {
     let out = xcodekit(&["spm", "--help"]);
     assert!(out.status.success());
@@ -51,5 +64,6 @@ fn help() {
     assert!(text.contains("add-local"));
     assert!(text.contains("add-product"));
     assert!(text.contains("remove-product"));
+    assert!(text.contains("remove-package"));
     assert!(text.contains("list"));
 }

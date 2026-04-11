@@ -632,6 +632,47 @@ impl Scheme {
             }),
         }
     }
+
+    /// Set the build configuration for launch and archive actions.
+    pub fn set_build_configuration(&mut self, run_config: Option<&str>, archive_config: Option<&str>) {
+        if let Some(cfg) = run_config {
+            if let Some(ref mut la) = self.launch_action {
+                la.build_configuration = Some(cfg.to_string());
+            }
+        }
+        if let Some(cfg) = archive_config {
+            if let Some(ref mut aa) = self.archive_action {
+                aa.build_configuration = Some(cfg.to_string());
+            }
+        }
+    }
+
+    /// Enable or disable test coverage on the test action.
+    pub fn set_test_coverage(&mut self, enabled: bool) {
+        let test = self.test_action.get_or_insert_with(|| TestAction {
+            build_configuration: Some("Debug".to_string()),
+            selected_debugger_identifier: None,
+            selected_launcher_identifier: None,
+            should_use_launch_scheme_args_env: None,
+            code_coverage_enabled: None,
+            only_generate_coverage_for_specified_targets: None,
+            should_autocreate_test_plan: None,
+            preferred_screen_capture_format: None,
+            pre_actions: None,
+            post_actions: None,
+            testables: None,
+            macro_expansion: None,
+            test_plans: None,
+            command_line_arguments: None,
+            environment_variables: None,
+        });
+        test.code_coverage_enabled = Some(if enabled { "YES" } else { "NO" }.to_string());
+    }
+
+    /// Duplicate this scheme under a new name (just clone the struct).
+    pub fn duplicate(&self) -> Scheme {
+        self.clone()
+    }
 }
 
 #[cfg(test)]

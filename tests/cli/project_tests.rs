@@ -65,6 +65,26 @@ fn health_malformed() {
 }
 
 #[test]
+fn list_files() {
+    let out = xcodekit(&["project", "list-files", &fixture("project.pbxproj"), "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    let files = json["files"].as_array().unwrap();
+    assert!(!files.is_empty());
+    assert!(files[0]["uuid"].is_string());
+    assert!(files[0]["path"].is_string());
+}
+
+#[test]
+fn list_tree() {
+    let out = xcodekit(&["project", "list-tree", &fixture("project.pbxproj"), "--json"]);
+    assert!(out.status.success());
+    let json = json_stdout(&out);
+    assert!(json["uuid"].is_string());
+    assert!(json["children"].is_array());
+}
+
+#[test]
 fn dump_valid_json() {
     let out = xcodekit(&["project", "dump", &fixture("project.pbxproj")]);
     assert!(out.status.success());

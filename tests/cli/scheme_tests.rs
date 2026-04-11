@@ -11,6 +11,22 @@ fn show_ios_scheme() {
 }
 
 #[test]
+fn duplicate_scheme_help() {
+    let out = xcodekit(&["scheme", "--help"]);
+    assert!(out.status.success());
+    let text = stdout(&out);
+    assert!(text.contains("duplicate"));
+}
+
+#[test]
+fn remove_scheme_help() {
+    let out = xcodekit(&["scheme", "--help"]);
+    assert!(out.status.success());
+    let text = stdout(&out);
+    assert!(text.contains("remove"));
+}
+
+#[test]
 fn help() {
     let out = xcodekit(&["scheme", "--help"]);
     assert!(out.status.success());
@@ -21,4 +37,7 @@ fn help() {
     assert!(text.contains("set-env"));
     assert!(text.contains("add-arg"));
     assert!(text.contains("add-build-target"));
+    assert!(text.contains("duplicate"));
+    assert!(text.contains("set-config"));
+    assert!(text.contains("enable-coverage"));
 }
